@@ -280,7 +280,7 @@ open class BasePGPActivity : AppCompatActivity() {
     if (idsWithKey.isEmpty()) {
       val title = resources.getString(R.string.no_pgp_keys_dialog_title)
       val missingKeysForIds = ids.joinToString(", ")
-      val message = resources.getString(R.string.no_pgp_keys_dialog_message) + missingKeysForIds
+      val message = getString(R.string.no_pgp_keys_dialog_message, missingKeysForIds)
       openKeyManagerDialog(title, message) {
         keyImportAction.launch(PGPKeyListActivity.newIntent(this@BasePGPActivity))
       }
@@ -334,8 +334,7 @@ open class BasePGPActivity : AppCompatActivity() {
         } else {
           ids.joinToString(", ")
         }
-      val message =
-        resources.getString(R.string.no_decryption_keys_dialog_message) + missingDecKeysForIds
+      val message = getString(R.string.no_decryption_keys_dialog_message, missingDecKeysForIds)
       openKeyManagerDialog(title, message) {
         keyImportAction.launch(PGPKeyListActivity.newIntent(this@BasePGPActivity))
       }
@@ -466,7 +465,7 @@ open class BasePGPActivity : AppCompatActivity() {
     val emails = identifiers.map { repository.getEmailFromKeyId(it) }.filterNotNull().distinct()
     if (emails.isEmpty()) return null
     val label = if (emails.size > 1) R.string.pgp_id_label_plural else R.string.pgp_id_label
-    return "${resources.getString(label)} ${emails.joinToString(", ")}"
+    return getString(label, emails.joinToString(", "))
   }
 
   @Suppress("ReturnCount")

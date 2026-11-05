@@ -388,9 +388,7 @@ class PasswordCreationActivity : BasePGPActivity() {
     }
 
     pendingSave = false
-    requireKeysExist {
-      requireEncryptionKeysExist(binding.directory.text.toString()) { ids -> encrypt(ids) }
-    }
+    requireEncryptionKeysExist(binding.directory.text.toString()) { ids -> encrypt(ids) }
   }
 
   private fun updateMappedSuggestedNameAfterUnlock() {
