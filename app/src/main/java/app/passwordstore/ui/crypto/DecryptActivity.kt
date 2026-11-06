@@ -25,7 +25,6 @@ import app.passwordstore.ui.adapters.FieldItemAdapter
 import app.passwordstore.util.crypto.AESEncryption
 import app.passwordstore.util.extensions.enableEdgeToEdgeView
 import app.passwordstore.util.extensions.getString
-import app.passwordstore.util.extensions.snackbar
 import app.passwordstore.util.extensions.toCharArray
 import app.passwordstore.util.extensions.unsafeLazy
 import app.passwordstore.util.extensions.viewBinding
@@ -33,6 +32,7 @@ import app.passwordstore.util.extensions.wipe
 import app.passwordstore.util.settings.PreferenceKeys
 import com.github.michaelbull.result.getError
 import com.github.michaelbull.result.getOrThrow
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import dagger.hilt.android.AndroidEntryPoint
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -128,7 +128,10 @@ class DecryptActivity : BasePGPActivity() {
   ) {
     val message = withContext(dispatcherProvider.io()) { File(fullPath).readBytes().inputStream() }
     val outputStream = ByteArrayOutputStream()
-    val results = repository.decrypt(passphrases, identifiers, message, outputStream)
+    val results =
+      withContext(dispatcherProvider.io()) {
+        repository.decrypt(passphrases, identifiers, message, outputStream)
+      }
     val lastResult = results.last()
     if (lastResult.second.isOk) {
       val decryptedEntryBytes = lastResult.second.getOrThrow().toByteArray()
@@ -161,9 +164,17 @@ class DecryptActivity : BasePGPActivity() {
       } else if (
         results.filter { it.second.getError() is NoDecryptionKeyAvailableException }.any()
       ) {
-        snackbar(message = resources.getString(R.string.password_decryption_no_decryption_key))
+        // snackbar(message = resources.getString(R.string.password_decryption_no_decryption_key))
+        MaterialAlertDialogBuilder(this)
+          .setMessage(R.string.password_decryption_no_decryption_key)
+          .setOnDismissListener { finish() }
+          .show()
       } else {
-        snackbar(message = resources.getString(R.string.password_decryption_unknown_error))
+        // snackbar(message = resources.getString(R.string.password_decryption_unknown_error))
+        MaterialAlertDialogBuilder(this)
+          .setMessage(R.string.password_decryption_unknown_error)
+          .setOnDismissListener { finish() }
+          .show()
       }
     }
     if (!settings.getBoolean(PreferenceKeys.CACHE_PASSPHRASE, false)) {
