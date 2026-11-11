@@ -609,7 +609,7 @@ class PasswordCreationActivity : BasePGPActivity() {
           contentChars.wipe()
 
           val (succeededUserEmails, result) =
-            withContext(dispatcherProvider.io()) {
+            withContext(dispatcherProvider.default()) {
               repository.encrypt(
                 identifiers,
                 ByteArrayInputStream(contentBytes),
