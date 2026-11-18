@@ -5,7 +5,9 @@
   "separateMajorMinor": false,
   "configMigration": true,
   "forkProcessing": "enabled",
-  "dependencyDashboard": true,
+  "dependencyDashboard": {
+    "enabled": true
+  },
   "labels": ["area/dependency"],
   "commitMessagePrefix": "build(deps): ",
   "branchPrefix": "renovate/",
