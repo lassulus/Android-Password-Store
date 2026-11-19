@@ -30,7 +30,27 @@ The baseline is deliberately an upstream SHA rather than a merge base. Selective
 
 This split is intentional: detection is automated; adoption remains explicit.
 
-## Current reconciliation (2026-10-27)
+## Current reconciliation (2026-11-19)
+
+Reviewed through upstream `7e9d6f03b96381355a3b9b1130319f548a4fb9e9` (`develop`), starting from `5f320126e14b9324db7a84f33e48fa9fdbdc30ca`. The opencode skill `.opencode/skills/upstream-sync` describes how to repeat this.
+
+| Upstream PR / commit | Disposition | Scope |
+| --- | --- | --- |
+| #1184, 0d63cc3f | adopted | Git error messages moved to translatable resource strings; formatting improved for long messages |
+| #1187 | adopted/adapted | Encryption/decryption UI refactorings: removed redundant `requireKeysExist` wrapping, use `getString(label, args)` format, trailing whitespace cleanup in strings. Passkey files skipped (not present in fork) |
+| #1188 | adopted/adapted | Decryption activities refactorings: `DecryptActivity` uses dialog for error messages instead of snackbar+timer, `BasePGPActivity` passphrase caching simplified. Passkey files skipped |
+| #1197 | adopted/adapted | PGP crypto operations moved to `suspend` functions with proper coroutine dispatching (IO for key ops, default for crypto). `snackbar()` extension gains `onDismiss` callback. Diceware tests re-enabled. Fork's OpenPgpProvider support preserved in `CryptoRepository.encrypt()` |
+| #1204 | adopted | SSH auth key setup dialog refactored from 3-button to radio-button layout |
+| #1209 | adopted | Spanish translation improvements |
+| PSL updates (#1177, #1191, #1210) | adopted as snapshot | Public Suffix List refreshed once from `upstream/develop` |
+| #1175, #1180, #1183 | skipped | External/shared repository `manage_external_storage` permission: builds on #1168 which was reverted per fork policy |
+| #1172, #1174, #1176, #1178, #1181, #1182, #1185, #1186, #1173, #1189, #1192, #1194, #1195, #1198, #1199, #1202, #1206, #1207, #1208, #1212, #1213, #1214 | skipped | Dependency/build bumps owned by Renovate |
+| #1193, #1205, bump snapshot commits, merge release-2.1 | skipped | Release, changelog and snapshot-bump commits |
+| #1200 | skipped | Build configuration for release unit tests and Compose preview resources |
+| #1203 | skipped | F-Droid versioning adjustments; fork has its own versioning |
+| #1201 | adopted (in #1197) | Diceware passgen test fix (included in #1197 cherry-pick) |
+
+## Previous reconciliation (2026-10-27)
 
 Reviewed through upstream `5f320126e14b9324db7a84f33e48fa9fdbdc30ca` (`develop`), starting from `48ce3af5b4cd9b818d44edca4249a15d48e2170f`. The opencode skill `.opencode/skills/upstream-sync` describes how to repeat this.
 

@@ -385,8 +385,8 @@
 
   <!-- GitException messages -->
   <string name="git_unknown_error">Unknown error</string>
-  <string name="git_pull_rebase_fail_error">Pull has failed, you're in a detached head. Use\n\n\tSettings › Repository › Local Git config &amp; utilities › Abort rebase and push new branch\n\nto save your changes to the remote in a new branch and resolve the conflict there.</string>
-  <string name="git_pull_merge_fail_error">Merge has failed, you're in a conflicting state. TODO: Add a recovery method.</string>
+  <string name="git_pull_rebase_fail_error">Pull has failed, you\'re in a detached head. Use\n\n\tSettings › Repository › Local Git config &amp; utilities › Abort rebase and push new branch\n\nto save your changes to the remote in a new branch and resolve the conflict there.</string>
+  <string name="git_pull_merge_fail_error">Merge has failed, you\'re in a conflicting state. TODO: Add a recovery method.</string>
 
   <string name="git_push_nff_error">Push was rejected by remote, run pull before pushing again. You can use Synchronise rather than pull/push as it implements both.</string>
   <string name="git_push_generic_error">Push was rejected by remote, reason: %1$s</string>
