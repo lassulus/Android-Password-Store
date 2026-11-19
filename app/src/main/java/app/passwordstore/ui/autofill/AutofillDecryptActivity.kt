@@ -91,11 +91,8 @@ class AutofillDecryptActivity : BasePGPActivity() {
       intent?.getBooleanExtra(EXTRA_SEARCH_ACTION, true) ?: throw NullPointerException()
     action = if (isSearchAction) AutofillAction.Search else AutofillAction.Match
     logcat { action.toString() }
-    requireKeysExist {
-      requireDecryptionKeysExist(PasswordRepository.getParentPath(filePath, repositoryPath)) { ids
-        ->
-        getPersistentAndDecrypt(ids, action = "autofill")
-      }
+    requireDecryptionKeysExist(PasswordRepository.getParentPath(filePath, repositoryPath)) { ids ->
+      getPersistentAndDecrypt(ids, action = "autofill")
     }
   }
 
@@ -189,7 +186,8 @@ class AutofillDecryptActivity : BasePGPActivity() {
     onSuccess: suspend (String) -> Unit,
   ) {
     val encryptedFile = File(filePath)
-    val message = withContext(dispatcherProvider.io()) { encryptedFile.readBytes().inputStream() }
+    val message =
+      withContext(dispatcherProvider.default()) { encryptedFile.readBytes().inputStream() }
     val outputStream = ByteArrayOutputStream()
     val results = repository.decrypt(passphrases, identifiers, message, outputStream)
     val lastResult = results.last()
@@ -260,13 +258,13 @@ class AutofillDecryptActivity : BasePGPActivity() {
       } else if (
         results.filter { it.second.getError() is NoDecryptionKeyAvailableException }.any()
       ) {
-        snackbar(message = resources.getString(R.string.password_decryption_no_decryption_key))
-        val timer = Executors.newSingleThreadScheduledExecutor()
-        timer.schedule({ finish() }, 4.toLong(), TimeUnit.SECONDS)
+        snackbar(message = resources.getString(R.string.password_decryption_no_decryption_key)) {
+          finish()
+        }
       } else {
-        snackbar(message = resources.getString(R.string.password_decryption_unknown_error))
-        val timer = Executors.newSingleThreadScheduledExecutor()
-        timer.schedule({ finish() }, 4.toLong(), TimeUnit.SECONDS)
+        snackbar(message = resources.getString(R.string.password_decryption_unknown_error)) {
+          finish()
+        }
       }
     }
     if (!settings.getBoolean(PreferenceKeys.CACHE_PASSPHRASE, false)) {

@@ -80,7 +80,7 @@ constructor(
     }
   }
 
-  private fun stage(update: Update): StagedUpdate {
+  private suspend fun stage(update: Update): StagedUpdate {
     val target = update.file
     val identity = requireNotNull(target.parentFile) { "Metadata file has no parent: $target" }
     val plaintext =
@@ -109,7 +109,7 @@ constructor(
     )
   }
 
-  private fun encrypt(identity: File, plaintext: ByteArray): ByteArray {
+  private suspend fun encrypt(identity: File, plaintext: ByteArray): ByteArray {
     val identifiers = identifiersForIdentity(identity)
     val output = ByteArrayOutputStream()
     val (_, result) = repository.encrypt(identifiers, plaintext.inputStream(), output)

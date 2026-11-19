@@ -252,8 +252,8 @@
   <string name="oreo_autofill_save_app_not_supported">This app is currently not supported</string>
   <string name="oreo_autofill_save_passwords_dont_match">Passwords don\'t match</string>
   <string name="oreo_autofill_generate_password">Create entry</string>
-  <string name="oreo_autofill_warning_publisher_header">This app\'s publisher has changed since you first associated a Password Store entry with it: </string>
-  <string name="oreo_autofill_warning_publisher_footer"><b>The currently installed app may be trying to steal your credentials by pretending to be a trusted app.</b>\n\nTry to uninstall and reinstall the app from a trusted source, such as the Play Store, Amazon Appstore, F-Droid, or your phone manufacturer\'s store.</string>
+  <string name="oreo_autofill_warning_publisher_header">This app\'s publisher has changed since you first associated a Password Store entry with it:</string>
+  <string name="oreo_autofill_warning_publisher_footer"><b>The currently installed app may be trying to steal your credentials by pretending to be a trusted app.</b>\n\nTry to uninstall and reinstall the app from a trusted source, such as the Play Store, Amazon Appstore, F-Droid, or your phone manufacturer\'s store.</string>
   <string name="oreo_autofill_warning_publisher_install_time">Installed: %1$s</string>
   <string name="oreo_autofill_warning_publisher_app_name" translatable="false">“%1$s“</string>
   <string name="oreo_autofill_warning_publisher_advanced_info_template">Package:\n%1$s\n\nHash:\n%2$s</string>
@@ -269,8 +269,8 @@
   <string name="oreo_autofill_flaky_fill_support">Fill passwords (may require restarting the browser from time to time)</string>
   <string name="oreo_autofill_no_support">No support</string>
   <string name="oreo_autofill_enable_dialog_description">Password Store can offer to fill login forms and even save credentials you enter in apps or on websites.</string>
-  <string name="oreo_autofill_enable_dialog_instructions">To enable this feature, tap OK to go to Autofill settings. There, select Password Store from the list and confirm the confirmation prompt with OK.</string>
-  <string name="oreo_autofill_enable_dialog_installed_browsers">Autofill support with installed browsers: </string>
+  <string name="oreo_autofill_enable_dialog_instructions">To enable this feature, tap OK to go to Autofill settings. There, select Password Store from the list and confirm the confirmation prompt with OK.\n\nIn some browsers, the option "Autofill using another service" or similar must also be enabled.</string>
+  <string name="oreo_autofill_enable_dialog_installed_browsers">Autofill support with installed browsers:</string>
 
   <string name="ssh_key_does_not_exist">Unable to open the ssh private key, please check that the file exists</string>
   <string name="new_password_title">New password</string>
@@ -385,7 +385,7 @@
 
   <!-- GitException messages -->
   <string name="git_unknown_error">Unknown error</string>
-  <string name="git_pull_rebase_fail_error">Pull has failed, you\'re in a detached head. Using "settings > git utils", save your changes to the remote in a new branch and resolve the conflict on your computer.</string>
+  <string name="git_pull_rebase_fail_error">Pull has failed, you\'re in a detached head. Use\n\n\tSettings › Repository › Local Git config &amp; utilities › Abort rebase and push new branch\n\nto save your changes to the remote in a new branch and resolve the conflict there.</string>
   <string name="git_pull_merge_fail_error">Merge has failed, you\'re in a conflicting state. TODO: Add a recovery method.</string>
 
   <string name="git_push_nff_error">Push was rejected by remote, run pull before pushing again. You can use Synchronise rather than pull/push as it implements both.</string>
@@ -403,6 +403,9 @@
   <string name="git_foreground_description">Keeping the connection active during hardware key authentication</string>
   <string name="git_break_out_of_detached_success">There was a conflict when trying to rebase. Your local %1$s branch was pushed to another branch named %2$s\n.Use this branch to resolve conflict on your computer.</string>
   <string name="git_break_out_of_detached_unneeded">The repository is not rebasing, no need to push to another branch.</string>
+  <string name="git_multiplexing_unsupported_error">The server does not support multiple Git operations per SSH session. Please try again, a slower fallback mode will be used.</string>
+  <string name="git_incomplete_clone_error">Your local repository appears to be an incomplete Git clone, please delete it and clone it again.</string>
+  <string name="git_hostkey_changed">WARNING: The remote host key has changed. If this was to be expected, please go to\n\n\tSettings › Repository › Remote repository\n\nand clear the saved host key.</string>
 
   <!-- PGP key selection in folder creation -->
   <string name="gpg_key_select_mandatory">Selecting a PGP key is necessary to proceed</string>
@@ -508,11 +511,11 @@
   <string name="pgp_short_key_identifier">invalid: short ID</string>
   <string name="pgp_unknown_key_identifier">unknown key ID</string>
   <string name="no_pgp_keys_dialog_title">No PGP keys found</string>
-  <string name="no_pgp_keys_dialog_message">Open the PGP key manager and import matching PGP keys from backups for key ID(s): </string>
+  <string name="no_pgp_keys_dialog_message">Open the PGP key manager and import matching PGP keys from backups for key ID(s): %1$s</string>
   <string name="passkey_missing_recipient_key_title">Missing PGP recipient key</string>
   <string name="passkey_missing_recipient_key_message">This passkey cannot be saved because a public PGP key required by .gpg-id is not imported:\n\n%1$s\n\nImport the matching PGP key, then try again.</string>
   <string name="no_decryption_keys_dialog_title">No decryption keys found</string>
-  <string name="no_decryption_keys_dialog_message">Open the PGP key manager and import matching secret PGP keys from backups for key ID(s): </string>
+  <string name="no_decryption_keys_dialog_message">Open the PGP key manager and import matching secret PGP keys from backups for key ID(s): %1$s</string>
   <string name="pgp_unknown">unknown</string>
   <string name="pgp_public_only">public only</string>
   <string name="invalid_gpg_id_dialog_title">Empty or malformatted .gpg-id file</string>
@@ -526,8 +529,8 @@
   <string name="biometric_prompt_description_unlock_entry">Unlock entry with your fingerprint</string>
   <string name="biometric_prompt_description_unlock_authentication_key">Unlock authentication key with your device credentials</string>
   <string name="pgp_wrong_passphrase_input">Wrong passphrase</string>
-  <string name="pgp_id_label">PGP ID: </string>
-  <string name="pgp_id_label_plural">PGP IDs: </string>
+  <string name="pgp_id_label">PGP ID: %1$s</string>
+  <string name="pgp_id_label_plural">PGP IDs: %1$s</string>
   <string name="aes_key_invalidated_dialog_title">Warning! New fingerprint added</string>
   <string name="aes_key_invalidated_dialog_message">A new fingerprint has been registered in the device lock settings since the last use. Make sure it was added by you and not by someone else.</string>
 

@@ -21,6 +21,7 @@ import app.passwordstore.databinding.FragmentPwgenDicewareBinding
 import app.passwordstore.passgen.diceware.DicewarePassphraseGenerator
 import app.passwordstore.passgen.diceware.PasswordOption
 import app.passwordstore.ui.crypto.PasswordCreationActivity
+import app.passwordstore.util.coroutines.DispatcherProvider
 import app.passwordstore.util.crypto.AESEncryption
 import app.passwordstore.util.crypto.AESEncryption.KeyType
 import app.passwordstore.util.extensions.getString
@@ -37,6 +38,7 @@ import reactivecircus.flowbinding.android.widget.checkedChanges
 @AndroidEntryPoint
 class DicewarePasswordGeneratorDialogFragment : DialogFragment() {
 
+  @Inject lateinit var dispatcherProvider: DispatcherProvider
   @Inject lateinit var dicewareGenerator: DicewarePassphraseGenerator
   lateinit var prefs: SharedPreferences
 
@@ -119,21 +121,24 @@ class DicewarePasswordGeneratorDialogFragment : DialogFragment() {
     includeNumeral: Boolean,
     capitalise: Boolean,
   ) {
-    prefs.edit {
-      putString(
-        DICEWARE_LENGTH,
-        AESEncryption.encrypt(length.toString().toCharArray(), keyType = KeyType.PERSISTENT)?.let {
-          String(it)
-        },
-      )
-      putString(
-        DICEWARE_SEPARATOR,
-        AESEncryption.encrypt(charArrayOf(separator), keyType = KeyType.PERSISTENT)?.let {
-          String(it)
-        },
-      )
-      putBoolean(PasswordOption.Numeral.key, includeNumeral)
-      putBoolean(PasswordOption.Capitalise.key, capitalise)
+    lifecycleScope.launch(dispatcherProvider.io()) {
+      prefs.edit {
+        putString(
+          DICEWARE_LENGTH,
+          AESEncryption.encrypt(length.toString().toCharArray(), keyType = KeyType.PERSISTENT)
+            ?.let {
+              String(it)
+            },
+        )
+        putString(
+          DICEWARE_SEPARATOR,
+          AESEncryption.encrypt(charArrayOf(separator), keyType = KeyType.PERSISTENT)?.let {
+            String(it)
+          },
+        )
+        putBoolean(PasswordOption.Numeral.key, includeNumeral)
+        putBoolean(PasswordOption.Capitalise.key, capitalise)
+      }
     }
   }
 }

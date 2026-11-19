@@ -238,7 +238,7 @@
   <string name="oreo_autofill_save_app_not_supported">Diese App wird derzeit nicht unterstützt.</string>
   <string name="oreo_autofill_save_passwords_dont_match">Die Passwörter stimmen nicht überein.</string>
   <string name="oreo_autofill_generate_password">Passwort erstellen…</string>
-  <string name="oreo_autofill_warning_publisher_header">Der Hersteller dieser App hat sich geändert, seit Sie einen Eintrag zum Passwort-Speicher mit ihr verknüpft haben: </string>
+  <string name="oreo_autofill_warning_publisher_header">Der Hersteller dieser App hat sich geändert, seit Sie einen Eintrag zum Passwort-Speicher mit ihr verknüpft haben:</string>
   <string name="oreo_autofill_warning_publisher_footer"><b>Die derzeit installierte App versucht, Ihre Anmeldeinformationen zu stehlen, indem sie vorgibt, eine vertrauenswürdige App zu sein.</b>\n\nVersuchen Sie, die App zu deinstallieren und installieren Sie sie erneut aus einer vertrauenswürdigen Quelle wie dem Play Store, Amazon Appstore, F-Droid oder dem Shop Ihres Telefonherstellers.</string>
   <string name="oreo_autofill_warning_publisher_install_time">Installiert: %1$s</string>
 
@@ -255,8 +255,8 @@
   <string name="oreo_autofill_flaky_fill_support">Passwörter ausfüllen (manchmal kann ein Neustart des Browsers erforderlich sein)</string>
   <string name="oreo_autofill_no_support">Kein Support</string>
   <string name="oreo_autofill_enable_dialog_description">Password Store kann das Ausfüllen von Anmeldeformularen und sogar das Speichern von Anmeldedaten in Apps oder auf Webseiten übernehmen.</string>
-  <string name="oreo_autofill_enable_dialog_instructions">Tippen Sie auf OK, um diese Funktion zu aktivieren und um zu den Autofill-Einstellungen zu gelangen. Dort wählen Sie \"Password Store\" aus der Liste und bestätigen mit \"OK\".</string>
-  <string name="oreo_autofill_enable_dialog_installed_browsers">Autofill-Unterstützung mit installierten Browsern: </string>
+  <string name="oreo_autofill_enable_dialog_instructions">Tippen Sie auf OK, um diese Funktion zu aktivieren und um zu den Autofill-Einstellungen zu gelangen. Dort wählen Sie „Password Store" aus der Liste und bestätigen mit „OK".\n\nIn einigen Browsern muss zudem die Option „Autofill mit einem anderen Dienst" oder Ähnliches aktiviert werden.</string>
+  <string name="oreo_autofill_enable_dialog_installed_browsers">Autofill-Unterstützung mit installierten Browsern:</string>
 
   <string name="ssh_key_does_not_exist">Der private SSH-Schlüssel konnte nicht geöffnet werden. Bitte überprüfen Sie, ob die Datei existiert.</string>
   <string name="new_password_title">Neues Passwort</string>
@@ -356,10 +356,10 @@
 
   <!-- GitException messages -->
   <string name="git_unknown_error">Unbekannter Fehler</string>
-  <string name="git_pull_rebase_fail_error">Pull fehlgeschlagen. Sie befinden sich in einem abgelösten Head. Speichern Sie die Änderungen in \"Einstellungen &gt; Lokale Git-Konfiguration &amp; Dienstprogramme\" auf das Remote-Repository in einem neuen Branch und lösen Sie den Konflikt auf Ihrem Computer auf.</string>
+  <string name="git_pull_rebase_fail_error">Pull fehlgeschlagen. Sie befinden sich in einem abgelösten Head. Verwenden Sie\n\n\tEinstellungen › Repository › Lokale Git-Konfiguration &amp; Dienstprogramme › Rebase abbrechen und neuen Branch pushen\n\n, um die Änderungen in einem neuen Branch des Remote-Repositorys zu speichern, und lösen Sie den Konflikt dort.</string>
   <string name="git_pull_merge_fail_error">Merge fehlgeschlagen. Sie befinden sich in einem Konflikt. TODO: Wiederherstellungsmethode hinzufügen.</string>
 
-  <string name="git_push_nff_error">Push wurde vom Remote abgelehnt. Führen Sie den Pull vor dem Push aus. Sie können \"Synchronisieren\" statt Pull/Push nutzen, da es beides implementiert.</string>
+  <string name="git_push_nff_error">Push wurde vom Remote abgelehnt. Führen Sie den Pull vor dem Push aus. Sie können Synchronisieren statt Pull/Push nutzen, da es beides implementiert.</string>
   <string name="git_push_generic_error">Push wurde von Remote abgelehnt, Grund: %1$s</string>
   <string name="git_push_other_error">Remote hat den Push abgelehnt. Prüfen Sie die Variable receive.denyNonFastForwards in der Konfigurationsdatei des Ziel-Repositorys.</string>
   <string name="git_unknown_host">Unbekannter Host: %1$s</string>
@@ -371,6 +371,9 @@
   <string name="git_operation_running">Git-Operation wird ausgeführt…</string>
   <string name="git_break_out_of_detached_success">Es gab einen Konflikt während des Rebase-Prozesses. Ihr lokaler Branch %1$s wurde auf einen anderen Branch namens %2$s gepusht.\nNutzen Sie diesen Branch, um den Konflikt auf dem Server zu beheben</string>
   <string name="git_break_out_of_detached_unneeded">Das Repository befindet sich nicht im Rebase-Prozess; es ist nicht nötig, den Zustand auf einen weiteren Branch zu pushen.</string>
+  <string name="git_multiplexing_unsupported_error">Der Server unterstützt nicht mehrere Git-Operationen pro SSH-Sitzung. Bitte versuchen Sie es erneut, es wird ein langsamerer Fallback-Modus verwendet.</string>
+  <string name="git_incomplete_clone_error">Ihr lokales Repository scheint ein unvollständiger Git-Klon zu sein, bitte löschen Sie es und klonen Sie es erneut.</string>
+  <string name="git_hostkey_changed">WARNUNG: Der Remote-Hostschlüssel hat sich geändert. Wenn dies zu erwarten war, gehen Sie bitte zu\n\n\tEinstellungen › Repository › Remote-Repository\n\nund löschen Sie den gespeicherten Hostschlüssel.</string>
 
   <!-- PGP key selection in folder creation -->
   <string name="gpg_key_select_mandatory">Um fortzufahren, muss ein PGP-Schlüssel ausgewählt werden.</string>
@@ -476,9 +479,9 @@
   <string name="pgp_short_key_identifier">ungültig: Kurz-ID</string>
   <string name="pgp_unknown_key_identifier">unbekannte Schlüssel-ID</string>
   <string name="no_pgp_keys_dialog_title">Keine PGP-Schlüssel gefunden</string>
-  <string name="no_pgp_keys_dialog_message">Öffnen Sie den PGP-Schlüsselmanager und importieren Sie aus Backups passende PGP-Schlüssel für folgende ID(s): </string>
+  <string name="no_pgp_keys_dialog_message">Öffnen Sie den PGP-Schlüsselmanager und importieren Sie aus Backups passende PGP-Schlüssel für folgende ID(s): %1$s</string>
   <string name="no_decryption_keys_dialog_title">Keine geheimen Schlüssel</string>
-  <string name="no_decryption_keys_dialog_message">Öffnen Sie den PGP-Schlüsselmanager und importieren Sie aus Backups passende geheime PGP-Schlüssel für folgende ID(s): </string>
+  <string name="no_decryption_keys_dialog_message">Öffnen Sie den PGP-Schlüsselmanager und importieren Sie aus Backups passende geheime PGP-Schlüssel für folgende ID(s): %1$s</string>
   <string name="pgp_unknown">unbekannt</string>
   <string name="pgp_public_only">nur öffentlich</string>
   <string name="invalid_gpg_id_dialog_title">Leere oder fehlerhaft formatierte .gpg-id-Datei</string>
@@ -492,8 +495,8 @@
   <string name="biometric_prompt_description_unlock_entry">Zum Anzeigen des Eintrags müssen Sie sich authentisieren</string>
   <string name="biometric_prompt_description_unlock_authentication_key">Entsperren Sie den Authentifizierungsschlüssel mit Ihren Geräteanmeldeinformationen</string>
   <string name="pgp_wrong_passphrase_input">Falsche Eingabe</string>
-  <string name="pgp_id_label">PGP-ID: </string>
-  <string name="pgp_id_label_plural">PGP-IDs: </string>
+  <string name="pgp_id_label">PGP-ID: %1$s</string>
+  <string name="pgp_id_label_plural">PGP-IDs: %1$s</string>
   <string name="aes_key_invalidated_dialog_title">Achtung! Neuer Fingerabdruck hinzugefügt</string>
   <string name="aes_key_invalidated_dialog_message">Seit der letzten Verwendung wurde in den Geräteanmeldeinformationen ein neuer Fingerabdruck registriert. Stellen Sie sicher, dass er von Ihnen und nicht von jemand anderem hinzugefügt wurde.</string>
 

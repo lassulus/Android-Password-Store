@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file
 
 ## [Unreleased]
 
+### Changed
+
+- PGP crypto operations now run on dedicated threads for better app responsiveness
+- SSH auth key setup dialog uses radio buttons instead of multiple buttons
+- Decryption errors shown as dialogs instead of auto-dismissing snackbars
+- Git error messages are now translatable
+- Updated Spanish translation
+- Refreshed Public Suffix List for autofill domain matching
+
 ## [1.28.1] - 2026-11-13
 
 ### Fixed

@@ -388,9 +388,7 @@ class PasswordCreationActivity : BasePGPActivity() {
     }
 
     pendingSave = false
-    requireKeysExist {
-      requireEncryptionKeysExist(binding.directory.text.toString()) { ids -> encrypt(ids) }
-    }
+    requireEncryptionKeysExist(binding.directory.text.toString()) { ids -> encrypt(ids) }
   }
 
   private fun updateMappedSuggestedNameAfterUnlock() {
@@ -611,7 +609,7 @@ class PasswordCreationActivity : BasePGPActivity() {
           contentChars.wipe()
 
           val (succeededUserEmails, result) =
-            withContext(dispatcherProvider.io()) {
+            withContext(dispatcherProvider.default()) {
               repository.encrypt(
                 identifiers,
                 ByteArrayInputStream(contentBytes),

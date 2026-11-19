@@ -280,7 +280,7 @@ open class BasePGPActivity : AppCompatActivity() {
     if (idsWithKey.isEmpty()) {
       val title = resources.getString(R.string.no_pgp_keys_dialog_title)
       val missingKeysForIds = ids.joinToString(", ")
-      val message = resources.getString(R.string.no_pgp_keys_dialog_message) + missingKeysForIds
+      val message = getString(R.string.no_pgp_keys_dialog_message, missingKeysForIds)
       openKeyManagerDialog(title, message) {
         keyImportAction.launch(PGPKeyListActivity.newIntent(this@BasePGPActivity))
       }
@@ -334,8 +334,7 @@ open class BasePGPActivity : AppCompatActivity() {
         } else {
           ids.joinToString(", ")
         }
-      val message =
-        resources.getString(R.string.no_decryption_keys_dialog_message) + missingDecKeysForIds
+      val message = getString(R.string.no_decryption_keys_dialog_message, missingDecKeysForIds)
       openKeyManagerDialog(title, message) {
         keyImportAction.launch(PGPKeyListActivity.newIntent(this@BasePGPActivity))
       }
@@ -466,7 +465,7 @@ open class BasePGPActivity : AppCompatActivity() {
     val emails = identifiers.map { repository.getEmailFromKeyId(it) }.filterNotNull().distinct()
     if (emails.isEmpty()) return null
     val label = if (emails.size > 1) R.string.pgp_id_label_plural else R.string.pgp_id_label
-    return "${resources.getString(label)} ${emails.joinToString(", ")}"
+    return getString(label, emails.joinToString(", "))
   }
 
   @Suppress("ReturnCount")
@@ -510,14 +509,11 @@ open class BasePGPActivity : AppCompatActivity() {
             runCatching {
               // update temporary passphrase cache
               val isHardwareBacked = AESEncryption.isHardwareBacked()
-              val encryptedPassphrase = AESEncryption.encrypt(passphrase)
-              if (isHardwareBacked && cacheEnabled && encryptedPassphrase != null)
-                cachedPassphrases.put(id, encryptedPassphrase)
+              val encryptedPassphrase =
+                if (isHardwareBacked && cacheEnabled) AESEncryption.encrypt(passphrase) else null
+              encryptedPassphrase?.let { cachedPassphrases.put(id, it) }
               settings.edit {
-                putBoolean(
-                  PreferenceKeys.CACHE_PASSPHRASE,
-                  isHardwareBacked && cacheEnabled && encryptedPassphrase != null,
-                )
+                putBoolean(PreferenceKeys.CACHE_PASSPHRASE, encryptedPassphrase != null)
               }
 
               // update persistent passphrase cache
