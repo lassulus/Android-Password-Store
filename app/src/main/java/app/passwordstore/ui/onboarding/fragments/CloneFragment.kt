@@ -15,6 +15,7 @@ import androidx.fragment.app.Fragment
 import app.passwordstore.R
 import app.passwordstore.data.repo.PasswordRepository
 import app.passwordstore.databinding.FragmentCloneBinding
+import app.passwordstore.passkeys.storage.PasskeyBackend
 import app.passwordstore.ui.git.config.GitServerConfigActivity
 import app.passwordstore.util.extensions.finish
 import app.passwordstore.util.extensions.performTransactionWithBackStack
@@ -39,11 +40,13 @@ class CloneFragment : Fragment(R.layout.fragment_clone) {
   private val cloneAction =
     registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
       if (result.resultCode == AppCompatActivity.RESULT_OK) {
-        if (File(PasswordRepository.getRepositoryDirectory(), ".gpg-id").isFile()) {
+        val repositoryDir = PasswordRepository.getRepositoryDirectory()
+        // pass (.gpg-id) or passage (.age-recipients) store: ready to use as cloned.
+        if (PasskeyBackend.recipientsFileNames.any { File(repositoryDir, it).isFile() }) {
           settings.edit { putBoolean(PreferenceKeys.REPOSITORY_INITIALIZED, true) }
           finish()
         } else {
-          // non-pass repository --> go to key selection
+          // neither pass nor passage repository --> go to key selection
           runCatching {
             parentFragmentManager.performTransactionWithBackStack(
               KeySelectionFragment.newInstance()

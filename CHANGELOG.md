@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file
 ### Added
 
 - Passkeys can be stored in a [passage](https://github.com/FiloSottile/passage) (age) store: stores with a `.age-recipients` file use `.age` passkey files, decrypted with an age identity generated or imported under Settings → Passkeys
+- Onboarding can initialise a new local store for age instead of PGP ("Use age (passage) instead"), and a cloned passage store is accepted without selecting a PGP key
 
 ### Changed
 

@@ -63,6 +63,13 @@ class AgeIdentityStore @Inject constructor(@AgeIdentities private val prefs: Sha
     return true
   }
 
+  /**
+   * Returns the stored identity's recipient, generating and saving a new identity if none exists.
+   * Returns `null` if a new identity could not be protected (see [save]).
+   */
+  fun recipientOrGenerate(): String? =
+    recipient ?: AgeKey.Identity.generate().takeIf(::save)?.recipient
+
   private companion object {
     const val IDENTITY = "passkey_identity"
     const val RECIPIENT = "passkey_recipient"

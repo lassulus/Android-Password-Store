@@ -81,7 +81,19 @@ public class AgeRecipientResolver(private val repositoryRoot: File) :
     return Ok(recipients)
   }
 
-  private companion object {
-    val RECIPIENTS_FILE_NAME = PasskeyBackend.AGE.recipientsFileName
+  public companion object {
+    private val RECIPIENTS_FILE_NAME = PasskeyBackend.AGE.recipientsFileName
+
+    /**
+     * Adds [recipient] to `<directory>/.age-recipients`, creating the file if needed. Existing
+     * lines are kept; the call is a no-op if the recipient is already listed.
+     */
+    public fun addRecipient(directory: File, recipient: String) {
+      val file = File(directory, RECIPIENTS_FILE_NAME)
+      val existing = if (file.isFile) file.readText() else ""
+      if (existing.lineSequence().any { it.trim() == recipient }) return
+      val separator = if (existing.isEmpty() || existing.endsWith("\n")) "" else "\n"
+      file.writeText("$existing$separator$recipient\n")
+    }
   }
 }

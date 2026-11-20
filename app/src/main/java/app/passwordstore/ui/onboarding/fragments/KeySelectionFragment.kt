@@ -15,9 +15,11 @@ import androidx.core.view.ViewCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import app.passwordstore.R
+import app.passwordstore.crypto.AgeRecipientResolver
 import app.passwordstore.data.repo.PasswordRepository
 import app.passwordstore.databinding.FragmentKeySelectionBinding
 import app.passwordstore.injection.prefs.SettingsPreferences
+import app.passwordstore.passkeys.AgeIdentityStore
 import app.passwordstore.ui.pgp.PGPKeyListActivity
 import app.passwordstore.util.extensions.commitChange
 import app.passwordstore.util.extensions.finish
@@ -29,12 +31,15 @@ import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
 import java.io.File
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @AndroidEntryPoint
 class KeySelectionFragment : Fragment(R.layout.fragment_key_selection) {
 
   @Inject @SettingsPreferences lateinit var settings: SharedPreferences
+  @Inject lateinit var ageIdentityStore: AgeIdentityStore
   private val binding by viewBinding(FragmentKeySelectionBinding::bind)
   private val gpgKeySelectAction =
     registerForActivityResult(StartActivityForResult()) { result ->
@@ -66,6 +71,31 @@ class KeySelectionFragment : Fragment(R.layout.fragment_key_selection) {
 
     binding.selectKey.setOnClickListener {
       gpgKeySelectAction.launch(PGPKeyListActivity.newIntent(requireContext(), keySelection = true))
+    }
+    binding.useAge.setOnClickListener { initializeAgeStore() }
+  }
+
+  /** Initialises a passage store: this device's age identity becomes the store's recipient. */
+  private fun initializeAgeStore() {
+    lifecycleScope.launch {
+      val recipient =
+        withContext(Dispatchers.IO) {
+          ageIdentityStore.recipientOrGenerate()?.also {
+            AgeRecipientResolver.addRecipient(PasswordRepository.getRepositoryDirectory(), it)
+          }
+        }
+      if (recipient == null) {
+        requireActivity()
+          .snackbar(
+            message = getString(R.string.passkey_age_identity_save_failed),
+            length = Snackbar.LENGTH_LONG,
+          )
+        return@launch
+      }
+      settings.edit { putBoolean(PreferenceKeys.REPOSITORY_INITIALIZED, true) }
+      requireActivity()
+        .commitChange(getString(R.string.git_commit_age_recipients, getString(R.string.app_name)))
+      finish()
     }
   }
 

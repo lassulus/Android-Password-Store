@@ -94,4 +94,20 @@ class AgeRecipientResolverTest {
     Files.createSymbolicLink(File(root, "fido2/example.com").toPath(), real.toPath())
     assertEquals(RecipientPolicyError.SymlinkRejected, resolve().unwrapError())
   }
+
+  @Test
+  fun `addRecipient initialises a store the resolver accepts`() = runTest {
+    AgeRecipientResolver.addRecipient(root, alice)
+    assertEquals("$alice\n", File(root, ".age-recipients").readText())
+    assertEquals(listOf(alice), resolve().unwrap().map { it.toString() })
+  }
+
+  @Test
+  fun `addRecipient keeps existing recipients and is idempotent`() = runTest {
+    File(root, ".age-recipients").writeText("# laptop\n$bob")
+    AgeRecipientResolver.addRecipient(root, alice)
+    AgeRecipientResolver.addRecipient(root, alice)
+    assertEquals("# laptop\n$bob\n$alice\n", File(root, ".age-recipients").readText())
+    assertEquals(listOf(bob, alice), resolve().unwrap().map { it.toString() })
+  }
 }

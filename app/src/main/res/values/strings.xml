@@ -43,6 +43,7 @@
   <string name="git_commit_move_text">Rename %1$s to %2$s.</string>
   <string name="git_commit_move_multiple_text">Move multiple passwords to %1$s.</string>
   <string name="git_commit_gpg_id">Initialise PGP IDs in %1$s.</string>
+  <string name="git_commit_age_recipients">Initialise age recipients in %1$s.</string>
 
   <!-- PGPHandler -->
   <string name="clipboard_copied_text">Copied to clipboard.</string>
@@ -431,6 +432,7 @@
   <string name="select_gpg_key_title">Select\nPGP key(s)</string>
   <string name="select_gpg_key_message">Select one or multiple PGP keys that you want to initialise the store with.</string>
   <string name="gpg_key_select">Select key(s)</string>
+  <string name="age_store_initialize">Use age (passage) instead</string>
   <string name="gpg_key_single_select">Select key</string>
 
   <!-- SSH port validation -->
