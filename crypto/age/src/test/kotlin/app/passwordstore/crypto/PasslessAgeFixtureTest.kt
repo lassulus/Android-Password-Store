@@ -12,7 +12,6 @@ import app.passwordstore.passkeys.model.StoredCredential
 import app.passwordstore.passkeys.storage.BackendSelectingPasskeyStorage
 import app.passwordstore.passkeys.storage.FilePasskeyStorage
 import app.passwordstore.passkeys.storage.PasskeyBackend
-import app.passwordstore.passkeys.storage.PasskeyStorageConfig
 import com.github.michaelbull.result.unwrap
 import java.io.File
 import kotlin.test.Test
@@ -42,8 +41,9 @@ class PasslessAgeFixtureTest {
   private val identity by lazy { AgeKey.Identity.parse(File(fixture, "identities").readText()) }
   private val decryptor by lazy { AgePasskeyDecryptor(AgeCryptoHandler()) { identity } }
 
+  private var directory = "fido2"
   private val storage by lazy {
-    val ageStorage =
+    BackendSelectingPasskeyStorage(store, { directory }) { backend, directory ->
       FilePasskeyStorage(
         repositoryRoot = store,
         cryptoHandler = AgeCryptoHandler(),
@@ -51,9 +51,9 @@ class PasslessAgeFixtureTest {
         pgpUnlockContext = DefaultPgpUnlockContext(),
         recipientResolver = AgeRecipientResolver(store),
         encryptionOptions = AgeCryptoOptions,
-        config = PasskeyStorageConfig("fido2", PasskeyBackend.AGE.fileExtension),
+        config = backend.storageConfig(directory),
       )
-    BackendSelectingPasskeyStorage(store, "fido2", mapOf(PasskeyBackend.AGE to ageStorage))
+    }
   }
 
   @Test
@@ -61,7 +61,20 @@ class PasslessAgeFixtureTest {
     assertEquals(PasskeyBackend.AGE, PasskeyBackend.detect(store, "fido2"))
     val listed = storage.listMetadataWithRefs("webauthn.io").unwrap().single()
     assertContentEquals(CREDENTIAL_ID, listed.metadata.credentialId)
-    assertEquals("webauthn.io/${CREDENTIAL_ID.toHex()}.age", listed.fileRef?.relativePath)
+    assertEquals("webauthn.io/passkey.age", listed.fileRef?.relativePath)
+  }
+
+  @Test
+  fun `passless passkey in a www site folder next to password entries`() = runTest {
+    val site = File(store, "www/webauthn.io").apply { mkdirs() }
+    File(store, "fido2/webauthn.io/passkey.age").renameTo(File(site, "passkey.age"))
+    for (entry in listOf("user.age", "pass.age", "otp.age")) File(site, entry).writeText(entry)
+    directory = "www"
+
+    val listed = storage.listMetadataWithRefs("webauthn.io").unwrap().single()
+    assertEquals("alice", listed.metadata.userName)
+    assertEquals("webauthn.io/passkey.age", listed.fileRef?.relativePath)
+    storage.loadForSigning(CREDENTIAL_ID).unwrap().use { assertEquals(3uL, it.signCount) }
   }
 
   @Test
@@ -84,7 +97,7 @@ class PasslessAgeFixtureTest {
 
   @Test
   fun `passless CBOR with integer-array byte fields parses completely`() = runTest {
-    val ciphertext = File(store, "fido2/webauthn.io/${CREDENTIAL_ID.toHex()}.age").readBytes()
+    val ciphertext = File(store, "fido2/webauthn.io/passkey.age").readBytes()
     val plaintext = decryptor.decryptFromBytes(ciphertext, DefaultPgpUnlockContext()).unwrap()
     assertEquals(370, plaintext.size(), "README: 370 bytes of CBOR")
     val stored = plaintext.use { it.borrow(StoredCredential::fromCbor) }
@@ -110,7 +123,5 @@ class PasslessAgeFixtureTest {
 
     fun hex(s: String) =
       ByteArray(s.length / 2) { s.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
-
-    fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
   }
 }

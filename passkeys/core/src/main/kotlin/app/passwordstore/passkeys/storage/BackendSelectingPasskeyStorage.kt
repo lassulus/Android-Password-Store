@@ -12,23 +12,27 @@ import app.passwordstore.passkeys.model.PasskeyMetadata
 import app.passwordstore.passkeys.model.SensitivePasskeyCredential
 import com.github.michaelbull.result.Result
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Routes every call to the storage of the store's current [PasskeyBackend]. The backend is detected
- * per call, so a repository cloned or switched between `pass` and `passage` after startup is picked
- * up without restarting.
+ * Routes every call to the storage of the store's current [PasskeyBackend] and passkey root. Both
+ * are resolved per call, so a repository cloned or switched between `pass` and `passage`, or a
+ * changed passkey root setting, applies without restarting. [storageFor] is called once per backend
+ * and root.
  */
 public class BackendSelectingPasskeyStorage(
   private val repositoryRoot: File,
-  private val passkeyDirectory: String,
-  private val backends: Map<PasskeyBackend, PasskeyStorage>,
+  private val passkeyDirectory: () -> String,
+  private val storageFor: (PasskeyBackend, String) -> PasskeyStorage,
 ) : PasskeyStorage {
+
+  private val storages = ConcurrentHashMap<Pair<PasskeyBackend, String>, PasskeyStorage>()
 
   private val active: PasskeyStorage
     get() {
-      val backend = PasskeyBackend.detect(repositoryRoot, passkeyDirectory)
-      return backends[backend]
-        ?: throw IllegalStateException("No passkey storage for ${backend.name} store")
+      val directory = passkeyDirectory()
+      val backend = PasskeyBackend.detect(repositoryRoot, directory)
+      return storages.getOrPut(backend to directory) { storageFor(backend, directory) }
     }
 
   override suspend fun listMetadata(rpId: String?): Result<List<PasskeyMetadata>, Throwable> =
@@ -69,6 +73,11 @@ public class BackendSelectingPasskeyStorage(
     credentialId: ByteArray,
     newSignCount: ULong,
   ): Result<Unit, Throwable> = active.updateSignCount(credentialId, newSignCount)
+
+  override suspend fun updateSignCountExact(
+    ref: PasskeyFileRef,
+    newSignCount: ULong,
+  ): Result<Unit, Throwable> = active.updateSignCountExact(ref, newSignCount)
 
   override suspend fun resolveSourceVersion(
     credentialId: ByteArray

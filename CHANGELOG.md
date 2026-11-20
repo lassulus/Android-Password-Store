@@ -8,6 +8,8 @@ All notable changes to this project will be documented in this file
 
 - Passkeys can be stored in a [passage](https://github.com/FiloSottile/passage) (age) store: stores with a `.age-recipients` file use `.age` passkey files, decrypted with an age identity generated or imported under Settings → Passkeys
 - Onboarding can initialise a new local store for age instead of PGP ("Use age (passage) instead"), and a cloned passage store is accepted without selecting a PGP key
+- age passkeys live in the site's folder next to its password entries (`<passkey folder>/<rp id>/passkey.age`, further accounts `passkey-<8 hex>.age`), matching passless
+- Settings → Passkeys → Passkey folder sets where passkeys are stored inside the store (default `fido2`, `.` for the store root)
 
 ### Changed
 

@@ -49,7 +49,7 @@ class NoFollowFileStoreTest {
       val result = store.scanMetadata(null)
       result.fold(
         success = { files ->
-          val evilFiles = files.filter { it.ref.canonicalRpId == "evil.com" }
+          val evilFiles = files.filter { it.canonicalRpId == "evil.com" }
           assertEquals(0, evilFiles.size, "Scanner must not follow symlinked RP directory")
         },
         failure = {
@@ -262,7 +262,7 @@ class NoFollowFileStoreTest {
       result.fold(
         success = { files ->
           assertEquals(1, files.size, "Only the real credential file should be returned")
-          assertEquals("aabb.gpg", File(files[0].ref.relativePath).name)
+          assertEquals("aabb.gpg", File(files[0].relativePath).name)
         },
         failure = { throw AssertionError("Scan should succeed: $it") },
       )
@@ -383,13 +383,13 @@ class NoFollowFileStoreTest {
         success = { files ->
           assertEquals(1, files.size)
           val file = files[0]
-          assertEquals("example.com", file.ref.canonicalRpId)
+          assertEquals("example.com", file.canonicalRpId)
           assertTrue(
-            file.ref.credentialId.contentEquals(
+            file.credentialId!!.contentEquals(
               byteArrayOf(0xaa.toByte(), 0xbb.toByte(), 0xcc.toByte(), 0xdd.toByte())
             )
           )
-          assertEquals("example.com/aabbccdd.gpg", file.ref.relativePath)
+          assertEquals("example.com/aabbccdd.gpg", file.relativePath)
         },
         failure = { throw AssertionError("Scan should succeed: $it") },
       )

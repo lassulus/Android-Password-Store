@@ -126,4 +126,5 @@ object PreferenceKeys {
 
   const val PASSKEY_CONSTANT_SIGNATURE_COUNTER = "passkey_constant_signature_counter"
   const val PASSKEY_AUTO_GIT_SYNC = "passkey_auto_git_sync"
+  const val PASSKEY_DIRECTORY = "passkey_directory"
 }

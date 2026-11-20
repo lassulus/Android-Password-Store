@@ -30,6 +30,8 @@ public class IndexedPasskeyStorage(
   private val generationProvider: RepositoryGenerationProvider? = null,
   private val concurrencyLimiter: PasskeyConcurrencyLimiter = PasskeyConcurrencyLimiter.DEFAULT,
   private val metadataEnricher: PasskeyMetadataEnricher? = null,
+  /** The passkey root inside the store; read on every load so a settings change applies. */
+  private val passkeyDirectory: () -> String = { PasskeyStorageConfig.DEFAULT_PASSKEY_DIRECTORY },
 ) : PasskeyStorage, PasskeyRepositoryState {
 
   private data class IndexedEntry(
@@ -41,6 +43,8 @@ public class IndexedPasskeyStorage(
   private val metadataIndex = ConcurrentHashMap<String, IndexedEntry>()
   private val rpIdIndex = ConcurrentHashMap<String, MutableSet<String>>()
   @Volatile private var indexLoaded = false
+  private val loadedRpIds: MutableSet<String> = ConcurrentHashMap.newKeySet()
+  @Volatile private var loadedDirectory: String? = null
   @Volatile private var trackedGeneration: RepositoryGeneration? = null
   @Volatile private var inMergeConflict = false
   @Volatile private var repositoryBackedUp = false
@@ -55,26 +59,37 @@ public class IndexedPasskeyStorage(
     return Base64.getUrlEncoder().withoutPadding().encodeToString(id)
   }
 
-  private suspend fun ensureIndexLoaded() {
-    if (generationProvider == null) {
-      loadIndexIfNeeded()
-      return
-    }
-    val currentGen = resolveCurrentGeneration() ?: return
-    if (indexLoaded && trackedGeneration == currentGen) return
+  /**
+   * Loads the index for [rpId], or for every site if `null`. Sites load on demand, so a site-folder
+   * (age) store only decrypts the passkey files of the site being asked for.
+   */
+  private suspend fun ensureIndexLoaded(rpId: String? = null) {
+    val currentGen =
+      if (generationProvider == null) trackedGeneration else resolveCurrentGeneration() ?: return
+    val directory = passkeyDirectory()
+    if (isIndexLoaded(rpId, currentGen, directory)) return
     indexLoadMutex.withLock {
-      if (indexLoaded && trackedGeneration == currentGen) return
-      rebuildIndex(currentGen)
+      if (isIndexLoaded(rpId, currentGen, directory)) return
+      if (!isIndexCurrent(currentGen, directory)) {
+        metadataIndex.clear()
+        rpIdIndex.clear()
+        loadedRpIds.clear()
+        indexLoaded = false
+        loadedDirectory = directory
+      }
+      loadIndex(rpId, currentGen)
     }
   }
 
-  private suspend fun loadIndexIfNeeded() {
-    if (indexLoaded) return
-    indexLoadMutex.withLock {
-      if (indexLoaded) return
-      rebuildIndex(trackedGeneration)
-    }
-  }
+  private fun isIndexCurrent(generation: RepositoryGeneration?, directory: String): Boolean =
+    directory == loadedDirectory && trackedGeneration == generation
+
+  private fun isIndexLoaded(
+    rpId: String?,
+    generation: RepositoryGeneration?,
+    directory: String,
+  ): Boolean =
+    isIndexCurrent(generation, directory) && (indexLoaded || (rpId != null && rpId in loadedRpIds))
 
   private suspend fun resolveCurrentGeneration(): RepositoryGeneration? {
     val provider = generationProvider ?: return null
@@ -90,17 +105,20 @@ public class IndexedPasskeyStorage(
     }
   }
 
-  private suspend fun rebuildIndex(generation: RepositoryGeneration?) {
+  private suspend fun loadIndex(rpId: String?, generation: RepositoryGeneration?) {
     concurrencyLimiter.indexRebuildSemaphore.acquire()
     try {
       withContext(Dispatchers.IO) {
-        metadataIndex.clear()
-        rpIdIndex.clear()
+        if (rpId == null) {
+          metadataIndex.clear()
+          rpIdIndex.clear()
+          loadedRpIds.clear()
+        }
         if (generationProvider != null) {
           inMergeConflict = generationProvider.isInMergeOrRebaseState()
         }
         delegate
-          .listMetadataWithRefs()
+          .listMetadataWithRefs(rpId)
           .fold(
             success = { entries ->
               entries.forEach { entry ->
@@ -126,12 +144,12 @@ public class IndexedPasskeyStorage(
                   indexMetadata(enrichedMetadata, entry.sourceVersion, entry.fileRef)
                 }
               }
-              indexLoaded = true
+              if (rpId == null) indexLoaded = true else loadedRpIds.add(rpId)
               trackedGeneration = generation
             },
             failure = { error ->
               logcat(LogPriority.ERROR) { "Failed to load passkey index: $error" }
-              indexLoaded = false
+              if (rpId == null) indexLoaded = false
             },
           )
       }
@@ -164,14 +182,17 @@ public class IndexedPasskeyStorage(
     if (generationProvider == null || !indexLoaded) return false
     if (changedPaths.any { it in PasskeyBackend.recipientsFileNames }) return false
 
+    val directory = passkeyDirectory()
+    val prefix = if (directory.isEmpty()) "" else "$directory/"
     val changedPasskeyPaths =
       changedPaths
         .asSequence()
+        .filter { it.startsWith(prefix) }
+        .map { it.removePrefix(prefix) }
         .filter { path ->
-          path.startsWith("fido2/") &&
-            PasskeyBackend.entries.any { path.endsWith(it.fileExtension) }
+          val fileName = path.substringAfterLast('/')
+          PasskeyBackend.entries.any { it.isPasskeyFile(fileName) }
         }
-        .map { it.removePrefix("fido2/") }
         .toSet()
 
     return indexLoadMutex.withLock {
@@ -202,10 +223,12 @@ public class IndexedPasskeyStorage(
 
     val rpDirectory = pathSegments[0]
     val fileName = pathSegments[1]
-    val extension =
-      PasskeyBackend.entries.firstOrNull { fileName.endsWith(it.fileExtension) }?.fileExtension
-        ?: return false
-    val credentialId = hexToBytes(fileName.removeSuffix(extension)) ?: return false
+    // Only credential-id file names can be reconciled without decrypting; site-folder files make
+    // the caller fall back to an on-demand reload.
+    val credentialId =
+      PasskeyBackend.entries.firstNotNullOfOrNull {
+        it.fileNaming.credentialIdFromName(fileName, it.fileExtension)
+      } ?: return false
 
     val provisionalRef =
       try {
@@ -270,7 +293,7 @@ public class IndexedPasskeyStorage(
   }
 
   override suspend fun listMetadata(rpId: String?): Result<List<PasskeyMetadata>, Throwable> {
-    ensureIndexLoaded()
+    ensureIndexLoaded(rpId)
 
     return withContext(Dispatchers.Default) {
       try {
@@ -290,7 +313,7 @@ public class IndexedPasskeyStorage(
   override suspend fun listMetadataWithRefs(
     rpId: String?
   ): Result<List<PasskeyMetadataWithRef>, Throwable> {
-    ensureIndexLoaded()
+    ensureIndexLoaded(rpId)
 
     return withContext(Dispatchers.Default) {
       try {
@@ -360,18 +383,14 @@ public class IndexedPasskeyStorage(
       result.fold(
         success = {
           val metadata = PasskeyMetadata.fromPasskeyCredential(credential)
-          val versionResult =
-            delegate.resolveSourceVersion(credential.credentialId).getOrElse { null }
-          if (versionResult is SourceVersionResult.Stable) {
-            val ref =
-              delegate
-                .listMetadataWithRefs(credential.rpId)
-                .getOrElse { emptyList() }
-                .firstOrNull { it.metadata.credentialId.contentEquals(credential.credentialId) }
-                ?.fileRef
-            if (ref != null) {
-              indexMetadata(metadata, versionResult.version, ref)
-            }
+          // Look the new file up within its site only; a by-id lookup could decrypt every site.
+          val saved =
+            delegate
+              .listMetadataWithRefs(credential.rpId)
+              .getOrElse { emptyList() }
+              .firstOrNull { it.metadata.credentialId.contentEquals(credential.credentialId) }
+          if (saved?.fileRef != null && saved.sourceVersion != null) {
+            indexMetadata(metadata, saved.sourceVersion, saved.fileRef)
           }
           if (generationProvider != null) {
             trackedGeneration = resolveCurrentGeneration()
@@ -444,7 +463,7 @@ public class IndexedPasskeyStorage(
     val existing = metadataIndex[key]
 
     return if (existing != null) {
-      delegate.updateSignCount(credentialId, newSignCount).also { result ->
+      delegate.updateSignCountExact(existing.fileRef, newSignCount).also { result ->
         result.fold(
           success = {
             val updatedMetadata = existing.metadata.copy(signCount = newSignCount)
@@ -467,6 +486,23 @@ public class IndexedPasskeyStorage(
       }
     }
   }
+
+  override suspend fun updateSignCountExact(
+    ref: PasskeyFileRef,
+    newSignCount: ULong,
+  ): Result<Unit, Throwable> =
+    delegate.updateSignCountExact(ref, newSignCount).also { result ->
+      result.fold(
+        success = {
+          val key = credentialKey(ref.credentialId)
+          metadataIndex[key]?.let { existing ->
+            metadataIndex[key] =
+              existing.copy(metadata = existing.metadata.copy(signCount = newSignCount))
+          }
+        },
+        failure = { error -> invalidateOnDurabilityFailure(error, "counter update") },
+      )
+    }
 
   override suspend fun resolveSourceVersion(
     credentialId: ByteArray
@@ -508,6 +544,7 @@ public class IndexedPasskeyStorage(
       metadataIndex.clear()
       rpIdIndex.clear()
       indexLoaded = false
+      loadedRpIds.clear()
       trackedGeneration = null
     }
   }
@@ -522,9 +559,7 @@ public class IndexedPasskeyStorage(
   }
 
   override suspend fun onGitSyncCompleted(syncResult: GitSyncResult) {
-    val passkeyConflicts =
-      syncResult.conflicts.filter { it.startsWith("fido2/") || it == ".gpg-id" }
-    if (passkeyConflicts.isNotEmpty()) {
+    if (syncResult.hasPasskeyConflicts(passkeyDirectory())) {
       inMergeConflict = true
       resetBackupState()
       invalidate(InvalidationReason.MERGE_CONFLICT)
@@ -538,9 +573,9 @@ public class IndexedPasskeyStorage(
       return
     }
 
-    if (syncResult.affectsPasskeys()) {
+    if (syncResult.affectsPasskeys(passkeyDirectory())) {
       invalidate(InvalidationReason.GIT_SYNC_COMPLETED)
-    } else if (indexLoaded) {
+    } else if (indexLoaded || loadedRpIds.isNotEmpty()) {
       indexLoadMutex.withLock { trackedGeneration = resolveCurrentGeneration() }
     }
   }
@@ -599,6 +634,7 @@ public class IndexedPasskeyStorage(
     metadataIndex.clear()
     rpIdIndex.clear()
     indexLoaded = false
+    loadedRpIds.clear()
     trackedGeneration = null
     inMergeConflict = false
     repositoryBackedUp = false

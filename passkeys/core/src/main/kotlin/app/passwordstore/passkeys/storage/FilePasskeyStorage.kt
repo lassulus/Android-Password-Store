@@ -21,7 +21,10 @@ import app.passwordstore.passkeys.security.PasskeyInputLimits
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.andThen
 import com.github.michaelbull.result.fold
+import com.github.michaelbull.result.get
+import com.github.michaelbull.result.map
 import java.io.ByteArrayInputStream
 import java.io.File
 import kotlin.time.Instant
@@ -54,6 +57,7 @@ public class FilePasskeyStorage<
       repositoryRoot,
       config.passkeyDirectory,
       config.fileExtension,
+      config.fileNaming,
       atomicWriter,
       inputLimits,
       generationProvider,
@@ -65,96 +69,160 @@ public class FilePasskeyStorage<
 
   override suspend fun listMetadata(rpId: String?): Result<List<PasskeyMetadata>, Throwable> =
     withContext(Dispatchers.IO) {
-      confinedStore
-        .scanMetadata(rpId)
-        .fold(
-          success = { scanned ->
-            Ok(
-              scanned.map { file ->
-                PasskeyMetadata(
-                  credentialId = file.ref.credentialId.copyOf(),
-                  rpId = file.ref.canonicalRpId,
-                  userName = "",
-                  userDisplayName = "",
-                  createdAt = Instant.fromEpochMilliseconds(file.lastModifiedMillis),
-                  signCount = 0u,
-                  fileLastModified = file.lastModifiedMillis,
-                )
-              }
-            )
-          },
-          failure = { error ->
-            logcat(LogPriority.ERROR) { "Metadata scan failed: ${error.message}" }
-            mapScanError(error)
-          },
-        )
+      resolveFiles(rpId, withVersions = false).map { files -> files.map { it.metadata } }
     }
 
   override suspend fun listMetadataWithRefs(
     rpId: String?
   ): Result<List<PasskeyMetadataWithRef>, Throwable> =
     withContext(Dispatchers.IO) {
-      confinedStore
-        .scanMetadata(rpId)
-        .fold(
-          success = { scanned ->
-            val results = mutableListOf<PasskeyMetadataWithRef>()
-            for (file in scanned) {
-              val versionResult =
-                confinedStore
-                  .resolveVersion(file.ref)
-                  .fold(
-                    success = { it },
-                    failure = { null },
-                  )
-              val version =
-                when (versionResult) {
-                  is SourceVersionResult.Stable -> versionResult.version
-                  else -> null
-                }
-              results.add(
-                PasskeyMetadataWithRef(
-                  metadata =
-                    PasskeyMetadata(
-                      credentialId = file.ref.credentialId.copyOf(),
-                      rpId = file.ref.canonicalRpId,
-                      userName = "",
-                      userDisplayName = "",
-                      createdAt = Instant.fromEpochMilliseconds(file.lastModifiedMillis),
-                      signCount = 0u,
-                      fileLastModified = file.lastModifiedMillis,
-                    ),
-                  fileRef = file.ref,
-                  sourceVersion = version,
-                )
-              )
-            }
-            Ok(results)
-          },
-          failure = { error -> mapScanError(error) },
-        )
+      resolveFiles(rpId, withVersions = true).map { files ->
+        files.map { PasskeyMetadataWithRef(it.metadata, it.ref, it.version) }
+      }
     }
 
   override suspend fun loadForSigning(
     credentialId: ByteArray
   ): Result<SensitivePasskeyCredential, Throwable> =
     withContext(Dispatchers.IO) {
-      val scanResult = confinedStore.scanMetadata(null)
-      scanResult.fold(
-        success = { scanned ->
-          val matches = scanned.filter { it.ref.credentialId.contentEquals(credentialId) }
-          if (matches.isEmpty()) {
-            return@withContext Err(IllegalArgumentException("Credential not found"))
-          }
-          if (matches.size > 1) {
-            return@withContext Err(SecurityException("Duplicate credential ID detected"))
-          }
-          val match = matches.first()
-          loadFromExactRef(match.ref, expectedVersion = null)
-        },
-        failure = { error -> mapScanError(error) },
-      )
+      findById(credentialId).andThen { match ->
+        if (match == null) Err(IllegalArgumentException("Credential not found"))
+        else loadFromExactRef(match.ref, expectedVersion = null)
+      }
     }
+
+  /** A passkey file and the credential it holds. */
+  private class ResolvedFile(
+    val ref: PasskeyFileRef,
+    val version: CredentialSourceVersion?,
+    val metadata: PasskeyMetadata,
+  )
+
+  /**
+   * Lists the passkey files of [rpId] (of every site if `null`). Credential-id file names need no
+   * decryption. Site-folder files are decrypted to learn their credential, so this costs one
+   * decryption per passkey file of the requested site; only the by-id fallbacks pass `null`.
+   */
+  private suspend fun resolveFiles(
+    rpId: String?,
+    withVersions: Boolean,
+  ): Result<List<ResolvedFile>, Throwable> {
+    val scanned =
+      confinedStore
+        .scanMetadata(rpId)
+        .fold(
+          success = { it },
+          failure = { error ->
+            logcat(LogPriority.ERROR) { "Metadata scan failed: ${error.message}" }
+            return mapScanError(error)
+          },
+        )
+    val resolved =
+      scanned
+        .mapNotNull { file ->
+          val ref = file.ref ?: return@mapNotNull identifyByDecryption(file)
+          val version =
+            if (withVersions) {
+              (confinedStore.resolveVersion(ref).get() as? SourceVersionResult.Stable)?.version
+            } else {
+              null
+            }
+          ResolvedFile(ref, version, fileOnlyMetadata(ref, file.lastModifiedMillis))
+        }
+        .filter { rpId == null || it.ref.canonicalRpId == rpId }
+    if (resolved.groupBy { it.ref.credentialIdHex() }.any { it.value.size > 1 }) {
+      return Err(SecurityException("Duplicate credential ID detected"))
+    }
+    return Ok(resolved)
+  }
+
+  /** Decrypts a site-folder passkey file to learn which credential it holds. */
+  private suspend fun identifyByDecryption(file: ScannedCredentialFile): ResolvedFile? {
+    val opened =
+      confinedStore
+        .openPath(file.relativePath)
+        .fold(
+          success = { it },
+          failure = {
+            logcat(LogPriority.WARN) { "Cannot open ${file.relativePath}: ${it.message}" }
+            return null
+          },
+        )
+    val metadata =
+      opened
+        .use { decryptMetadata(it) }
+        .fold(
+          success = { it },
+          failure = {
+            logcat(LogPriority.WARN) { "Skipping passkey ${file.relativePath}: ${it.message}" }
+            return null
+          },
+        )
+    // The site folder must belong to the credential's relying party.
+    if (sanitizeRpId(metadata.rpId) != file.relativePath.substringBefore('/')) {
+      logcat(LogPriority.WARN) { "RP ID does not match folder of ${file.relativePath}" }
+      return null
+    }
+    val ref =
+      try {
+        PasskeyFileRef(metadata.rpId, metadata.credentialId, file.relativePath)
+      } catch (e: IllegalArgumentException) {
+        logcat(LogPriority.WARN) { "Rejected passkey ${file.relativePath}: ${e.message}" }
+        return null
+      }
+    return ResolvedFile(
+      ref,
+      opened.version,
+      metadata.copy(fileLastModified = file.lastModifiedMillis),
+    )
+  }
+
+  private suspend fun findById(credentialId: ByteArray): Result<ResolvedFile?, Throwable> =
+    resolveFiles(rpId = null, withVersions = false).map { files ->
+      files.firstOrNull { it.ref.credentialId.contentEquals(credentialId) }
+    }
+
+  private fun fileOnlyMetadata(ref: PasskeyFileRef, lastModifiedMillis: Long): PasskeyMetadata =
+    PasskeyMetadata(
+      credentialId = ref.credentialId.copyOf(),
+      rpId = ref.canonicalRpId,
+      userName = "",
+      userDisplayName = "",
+      createdAt = Instant.fromEpochMilliseconds(lastModifiedMillis),
+      signCount = 0u,
+      fileLastModified = lastModifiedMillis,
+    )
+
+  private suspend fun decryptMetadata(file: OpenedPasskeyFile): Result<PasskeyMetadata, Throwable> {
+    concurrencyLimiter.decryptionSemaphore.acquire()
+    val decryptResult =
+      try {
+        file.inputStream().use { stream ->
+          passkeyPgpDecryptor.decryptFromStream(
+            stream,
+            file.fileSize(),
+            pgpUnlockContext,
+            inputLimits,
+          )
+        }
+      } finally {
+        concurrencyLimiter.decryptionSemaphore.release()
+      }
+    val sensitivePlaintext =
+      decryptResult.fold(
+        success = { it },
+        failure = { error ->
+          return Err(IllegalStateException("Decryption failed: ${formatDecryptionError(error)}"))
+        },
+      )
+    return try {
+      sensitivePlaintext.borrow { Ok(StoredCredential.metadataFromCbor(it)) }
+    } catch (e: Exception) {
+      Err(e)
+    } finally {
+      sensitivePlaintext.close()
+    }
+  }
 
   override suspend fun loadForSigningExact(
     ref: PasskeyFileRef,
@@ -193,64 +261,26 @@ public class FilePasskeyStorage<
     expectedVersion: CredentialSourceVersion?,
   ): Result<PasskeyMetadata, Throwable> =
     withContext(Dispatchers.IO) {
-      val opened = confinedStore.openExact(ref, expectedVersion)
-      opened.fold(
-        success = file@{ file ->
-            try {
-              concurrencyLimiter.decryptionSemaphore.acquire()
-              val decryptResult =
-                try {
-                  val fileSize = file.fileSize()
-                  file.inputStream().use { stream ->
-                    passkeyPgpDecryptor.decryptFromStream(
-                      stream,
-                      fileSize,
-                      pgpUnlockContext,
-                      inputLimits,
-                    )
-                  }
-                } finally {
-                  concurrencyLimiter.decryptionSemaphore.release()
-                }
-
-              val sensitivePlaintext =
-                decryptResult.fold(
-                  success = { it },
-                  failure = { error ->
-                    return@file Err(
-                      IllegalStateException("Decryption failed: ${formatDecryptionError(error)}")
-                    )
-                      as Result<PasskeyMetadata, Throwable>
-                  },
-                )
-
-              try {
-                sensitivePlaintext.borrow { plaintext ->
-                  Ok(StoredCredential.metadataFromCbor(plaintext))
-                    as Result<PasskeyMetadata, Throwable>
-                }
-              } finally {
-                sensitivePlaintext.close()
-              }
-            } finally {
-              file.close()
+      confinedStore
+        .openExact(ref, expectedVersion)
+        .fold(
+          success = { file -> file.use { decryptMetadata(it) } },
+          failure = { error ->
+            when (error) {
+              is FileStoreError.VersionMismatch ->
+                Err(SecurityException("File version changed between validation and open"))
+              is FileStoreError.SymlinkInPath -> Err(SecurityException("Symlink rejected"))
+              is FileStoreError.FileNotFound ->
+                Err(IllegalArgumentException("Credential not found"))
+              is FileStoreError.RepositoryRootSymlinked ->
+                Err(SecurityException("Repository root is symlinked"))
+              is FileStoreError.PathOutsideRepository ->
+                Err(SecurityException("Path outside repository"))
+              is FileStoreError.NotRegularFile -> Err(SecurityException("Not a regular file"))
+              else -> Err(RuntimeException(error.message))
             }
           },
-        failure = { error ->
-          when (error) {
-            is FileStoreError.VersionMismatch ->
-              Err(SecurityException("File version changed between validation and open"))
-            is FileStoreError.SymlinkInPath -> Err(SecurityException("Symlink rejected"))
-            is FileStoreError.FileNotFound -> Err(IllegalArgumentException("Credential not found"))
-            is FileStoreError.RepositoryRootSymlinked ->
-              Err(SecurityException("Repository root is symlinked"))
-            is FileStoreError.PathOutsideRepository ->
-              Err(SecurityException("Path outside repository"))
-            is FileStoreError.NotRegularFile -> Err(SecurityException("Not a regular file"))
-            else -> Err(RuntimeException(error.message))
-          }
-        },
-      )
+        )
     }
 
   private suspend fun loadFromExactRef(
@@ -365,13 +395,19 @@ public class FilePasskeyStorage<
           }
         }
 
-        val ref =
-          PasskeyFileRef.fromRpIdAndCredentialId(
-            rpId = credential.rpId,
-            credentialId = storedCred.id,
-            sanitizedRpDir = sanitizedRpDir,
-            fileExtension = config.fileExtension,
+        // Site folders hold several accounts: take the first free name, never overwrite.
+        val candidates = config.fileNaming.candidateFileNames(storedCred.id, config.fileExtension)
+        val fileName =
+          if (config.fileNaming == PasskeyFileNaming.CREDENTIAL_ID) candidates.single()
+          else candidates.firstOrNull { !File(rpDir, it).exists() }
+        if (fileName == null) {
+          storedCred.close()
+          return@withContext Err(
+            IllegalStateException("No free passkey file name in $sanitizedRpDir")
           )
+        }
+        val ref =
+          PasskeyFileRef(credential.rpId, storedCred.id.copyOf(), "$sanitizedRpDir/$fileName")
 
         val plaintext =
           try {
@@ -383,7 +419,7 @@ public class FilePasskeyStorage<
         try {
           val recipients =
             recipientResolver
-              .resolveFor(File(rpDir, ref.credentialIdHex() + config.fileExtension))
+              .resolveFor(File(rpDir, ref.relativePath.substringAfterLast('/')))
               .fold(
                 success = { it },
                 failure = { error ->
@@ -429,37 +465,9 @@ public class FilePasskeyStorage<
 
   override suspend fun deleteCredential(credentialId: ByteArray): Result<Boolean, Throwable> =
     withContext(Dispatchers.IO) {
-      val scanResult = confinedStore.scanMetadata(null)
-      scanResult.fold(
-        success = { scanned ->
-          val matches = scanned.filter { it.ref.credentialId.contentEquals(credentialId) }
-          if (matches.isEmpty()) {
-            return@withContext Ok(false)
-          }
-          if (matches.size > 1) {
-            return@withContext Err(SecurityException("Duplicate credential ID detected"))
-          }
-          val match = matches.first()
-          confinedStore
-            .deleteExact(match.ref)
-            .fold(
-              success = { deleted ->
-                if (deleted) {
-                  logcat { "Deleted passkey ${match.ref.credentialIdHex()}" }
-                  cleanupEmptyDirectories(
-                    File(passkeyDir, match.ref.relativePath.substringBeforeLast('/'))
-                  )
-                }
-                Ok(deleted)
-              },
-              failure = { error ->
-                logcat(LogPriority.ERROR) { "Confined delete failed: ${error.message}" }
-                mapFileStoreError(error)
-              },
-            )
-        },
-        failure = { error -> mapScanError(error) },
-      )
+      findById(credentialId).andThen { match ->
+        if (match == null) Ok(false) else deleteCredentialExact(match.ref)
+      }
     }
 
   override suspend fun deleteCredentialExact(ref: PasskeyFileRef): Result<Boolean, Throwable> =
@@ -486,24 +494,13 @@ public class FilePasskeyStorage<
     newSignCount: ULong,
   ): Result<Unit, Throwable> =
     withContext(Dispatchers.IO) {
-      val scanResult = confinedStore.scanMetadata(null)
-      scanResult.fold(
-        success = { scanned ->
-          val matches = scanned.filter { it.ref.credentialId.contentEquals(credentialId) }
-          if (matches.isEmpty()) {
-            return@withContext Err(IllegalArgumentException("Credential not found"))
-          }
-          if (matches.size > 1) {
-            return@withContext Err(SecurityException("Duplicate credential ID detected"))
-          }
-          val match = matches.first()
-          updateSignCountExact(match.ref, newSignCount)
-        },
-        failure = { error -> mapScanError(error) },
-      )
+      findById(credentialId).andThen { match ->
+        if (match == null) Err(IllegalArgumentException("Credential not found"))
+        else updateSignCountExact(match.ref, newSignCount)
+      }
     }
 
-  public suspend fun updateSignCountExact(
+  override suspend fun updateSignCountExact(
     ref: PasskeyFileRef,
     newSignCount: ULong,
   ): Result<Unit, Throwable> =
@@ -606,29 +603,13 @@ public class FilePasskeyStorage<
     credentialId: ByteArray
   ): Result<SourceVersionResult, Throwable> =
     withContext(Dispatchers.IO) {
-      val scanResult = confinedStore.scanMetadata(null)
-      scanResult.fold(
-        success = { scanned ->
-          val matches = scanned.filter { it.ref.credentialId.contentEquals(credentialId) }
-          if (matches.isEmpty()) {
-            return@withContext Ok(SourceVersionResult.Missing)
-              as Result<SourceVersionResult, Throwable>
-          }
-          if (matches.size > 1) {
-            return@withContext Err(SecurityException("Duplicate credential ID detected"))
-              as Result<SourceVersionResult, Throwable>
-          }
+      findById(credentialId).andThen { match ->
+        if (match == null) Ok(SourceVersionResult.Missing)
+        else
           confinedStore
-            .resolveVersion(matches.first().ref)
-            .fold(
-              success = { Ok(it) as Result<SourceVersionResult, Throwable> },
-              failure = {
-                Err(RuntimeException(it.message)) as Result<SourceVersionResult, Throwable>
-              },
-            )
-        },
-        failure = { error -> mapScanError(error) as Result<SourceVersionResult, Throwable> },
-      )
+            .resolveVersion(match.ref)
+            .fold(success = { Ok(it) }, failure = { Err(RuntimeException(it.message)) })
+      }
     }
 
   override suspend fun resolveSourceVersionExact(

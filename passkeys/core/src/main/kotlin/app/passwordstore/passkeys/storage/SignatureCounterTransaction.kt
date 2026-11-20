@@ -145,7 +145,7 @@ public class SignatureCounterTransaction(
           },
         )
 
-    return finalizeAssertion(ref.credentialId, freshCredential)
+    return finalizeAssertion(ref.credentialId, freshCredential, ref)
   }
 
   private suspend fun requireStableVersion(
@@ -179,6 +179,7 @@ public class SignatureCounterTransaction(
   private suspend fun finalizeAssertion(
     credentialId: ByteArray,
     freshCredential: SensitivePasskeyCredential,
+    ref: PasskeyFileRef? = null,
   ): Result<ULong, SignatureCounterError> {
     val currentCounter = freshCredential.signCount
 
@@ -203,7 +204,9 @@ public class SignatureCounterTransaction(
       return Err(SignatureCounterError.CounterOverflow)
     }
 
-    val persistResult = storage.updateSignCount(credentialId, nextCounter)
+    val persistResult =
+      if (ref != null) storage.updateSignCountExact(ref, nextCounter)
+      else storage.updateSignCount(credentialId, nextCounter)
     freshCredential.close()
 
     return persistResult.fold(

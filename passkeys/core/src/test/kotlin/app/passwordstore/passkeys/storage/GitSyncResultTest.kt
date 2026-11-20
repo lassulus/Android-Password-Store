@@ -52,4 +52,17 @@ class GitSyncResultTest {
 
     assertTrue(result.affectsPasskeys())
   }
+
+  @Test
+  fun `passkey root setting decides which changes and conflicts matter`() {
+    fun result(path: String) =
+      GitSyncResult("old", "new", true, conflicts = listOf(path), changedPaths = setOf(path))
+
+    assertTrue(result("www/github.com/passkey.age").affectsPasskeys("www"))
+    assertTrue(result("www/github.com/passkey.age").hasPasskeyConflicts("www"))
+    assertFalse(result("fido2/github.com/passkey.age").affectsPasskeys("www"))
+    assertTrue(result(".age-recipients").hasPasskeyConflicts("www"))
+    // With the store root as passkey root any change may touch a passkey.
+    assertTrue(result("github.com/passkey-a1b2c3d4.age").affectsPasskeys(""))
+  }
 }

@@ -49,6 +49,7 @@ import app.passwordstore.passkeys.storage.PasskeyStorageConfig
 import app.passwordstore.passkeys.storage.RepositoryGenerationProvider
 import app.passwordstore.passkeys.storage.SignatureCounterHighWaterMark
 import app.passwordstore.passkeys.storage.SignatureCounterTransaction
+import app.passwordstore.util.settings.PreferenceKeys
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -130,38 +131,44 @@ object PasskeysModule {
     generationProvider: RepositoryGenerationProvider,
     metadataIndex: PasskeyMetadataIndex,
     ageIdentityStore: AgeIdentityStore,
+    @SettingsPreferences settings: SharedPreferences,
   ): PasskeyStorage {
     val repositoryRoot = File(context.filesDir, "store")
-    val passkeyDirectory = "fido2"
-    val pgpStorage =
-      FilePasskeyStorage(
-        repositoryRoot = repositoryRoot,
-        cryptoHandler = cryptoHandler,
-        passkeyPgpDecryptor = passkeyPgpDecryptor,
-        pgpUnlockContext = pgpUnlockContext,
-        recipientResolver = recipientResolver,
-        encryptionOptions = app.passwordstore.crypto.PGPEncryptOptions.Builder().build(),
-        config = PasskeyStorageConfig(passkeyDirectory, PasskeyBackend.OPENPGP.fileExtension),
-        generationProvider = generationProvider,
-      )
+    val passkeyDirectory = {
+      val default = PasskeyStorageConfig.DEFAULT_PASSKEY_DIRECTORY
+      PasskeyStorageConfig.normalizePasskeyDirectory(
+        settings.getString(PreferenceKeys.PASSKEY_DIRECTORY, null) ?: default
+      ) ?: default
+    }
     val ageCryptoHandler = AgeCryptoHandler()
-    val ageStorage =
-      FilePasskeyStorage(
-        repositoryRoot = repositoryRoot,
-        cryptoHandler = ageCryptoHandler,
-        passkeyPgpDecryptor = AgePasskeyDecryptor(ageCryptoHandler) { ageIdentityStore.load() },
-        pgpUnlockContext = DefaultPgpUnlockContext(),
-        recipientResolver = AgeRecipientResolver(repositoryRoot),
-        encryptionOptions = AgeCryptoOptions,
-        config = PasskeyStorageConfig(passkeyDirectory, PasskeyBackend.AGE.fileExtension),
-        generationProvider = generationProvider,
-      )
     val fileStorage =
-      BackendSelectingPasskeyStorage(
-        repositoryRoot,
-        passkeyDirectory,
-        mapOf(PasskeyBackend.OPENPGP to pgpStorage, PasskeyBackend.AGE to ageStorage),
-      )
+      BackendSelectingPasskeyStorage(repositoryRoot, passkeyDirectory) { backend, directory ->
+        when (backend) {
+          PasskeyBackend.OPENPGP ->
+            FilePasskeyStorage(
+              repositoryRoot = repositoryRoot,
+              cryptoHandler = cryptoHandler,
+              passkeyPgpDecryptor = passkeyPgpDecryptor,
+              pgpUnlockContext = pgpUnlockContext,
+              recipientResolver = recipientResolver,
+              encryptionOptions = app.passwordstore.crypto.PGPEncryptOptions.Builder().build(),
+              config = backend.storageConfig(directory),
+              generationProvider = generationProvider,
+            )
+          PasskeyBackend.AGE ->
+            FilePasskeyStorage(
+              repositoryRoot = repositoryRoot,
+              cryptoHandler = ageCryptoHandler,
+              passkeyPgpDecryptor =
+                AgePasskeyDecryptor(ageCryptoHandler) { ageIdentityStore.load() },
+              pgpUnlockContext = DefaultPgpUnlockContext(),
+              recipientResolver = AgeRecipientResolver(repositoryRoot),
+              encryptionOptions = AgeCryptoOptions,
+              config = backend.storageConfig(directory),
+              generationProvider = generationProvider,
+            )
+        }
+      }
     val enricher = PasskeyMetadataEnricher { metadata ->
       val entry = metadataIndex.get(metadata.credentialId)
       if (entry != null) {
@@ -170,7 +177,12 @@ object PasskeysModule {
         metadata
       }
     }
-    return IndexedPasskeyStorage(fileStorage, generationProvider, metadataEnricher = enricher)
+    return IndexedPasskeyStorage(
+      fileStorage,
+      generationProvider,
+      metadataEnricher = enricher,
+      passkeyDirectory = passkeyDirectory,
+    )
   }
 
   @Provides

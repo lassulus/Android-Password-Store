@@ -141,6 +141,10 @@
   <string name="pref_passkey_signature_counter_policy_summary">Always reports counter = 0 to websites, preventing Git merge conflicts across devices. Trade-off: websites cannot detect if your passkey was cloned to another device. Disable only for local-only (non-synced) repositories to enable monotonic counter with clone detection.</string>
   <string name="pref_passkey_auto_git_sync_title">Auto Git sync</string>
   <string name="pref_passkey_auto_git_sync_summary">Automatically sync passkeys with Git remote when repository is configured.</string>
+  <string name="pref_passkey_directory_title">Passkey folder</string>
+  <string name="pref_passkey_directory_summary">Passkeys are stored in %1$s/&lt;website&gt;/ inside the store (\".\" = store root).</string>
+  <string name="pref_passkey_directory_hint">fido2, www or .</string>
+  <string name="pref_passkey_directory_invalid">Use a folder inside the store, e.g. fido2, www or \".\". Hidden folders and \"..\" are not allowed.</string>
   <string name="pref_passkey_age_identity_title">age identity (passage stores)</string>
   <string name="pref_passkey_age_identity_summary_none">Not set. Needed for passkeys in a store with .age-recipients.</string>
   <string name="passkey_age_identity_message">%1$s\n\nAdd this recipient to .age-recipients in your passage store and re-encrypt the passkeys so this device can use them.</string>

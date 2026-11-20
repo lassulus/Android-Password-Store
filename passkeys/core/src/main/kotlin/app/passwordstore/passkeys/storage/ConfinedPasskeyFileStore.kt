@@ -18,6 +18,14 @@ public interface ConfinedPasskeyFileStore {
   public suspend fun openExact(
     ref: PasskeyFileRef,
     expectedVersion: CredentialSourceVersion? = null,
+  ): Result<OpenedPasskeyFile, FileStoreError> = openPath(ref.relativePath, expectedVersion)
+
+  /**
+   * Opens a passkey file by its path relative to the passkey root, e.g. `example.com/passkey.age`.
+   */
+  public suspend fun openPath(
+    relativePath: String,
+    expectedVersion: CredentialSourceVersion? = null,
   ): Result<OpenedPasskeyFile, FileStoreError>
 
   public suspend fun createOrReplace(
@@ -32,14 +40,24 @@ public interface ConfinedPasskeyFileStore {
   ): Result<SourceVersionResult, FileStoreError>
 }
 
-public data class ScannedCredentialFile(
-  val ref: PasskeyFileRef,
-  val fileSize: Long,
-  val lastModifiedMillis: Long,
-)
+/**
+ * A passkey file found by name. [credentialId] is `null` when the file naming does not carry it
+ * ([PasskeyFileNaming.SITE_FOLDER]); then only decryption tells which credential the file holds.
+ */
+public class ScannedCredentialFile(
+  public val canonicalRpId: String,
+  public val relativePath: String,
+  public val credentialId: ByteArray?,
+  public val fileSize: Long,
+  public val lastModifiedMillis: Long,
+) {
+  /** The exact ref, available when the file name carries the credential id. */
+  public val ref: PasskeyFileRef?
+    get() = credentialId?.let { PasskeyFileRef(canonicalRpId, it, relativePath) }
+}
 
 public class OpenedPasskeyFile(
-  public val ref: PasskeyFileRef,
+  public val relativePath: String,
   public val version: CredentialSourceVersion,
   private val contentBytes: ByteArray,
 ) : AutoCloseable {

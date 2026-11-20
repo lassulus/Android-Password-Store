@@ -11,11 +11,20 @@ import java.io.File
 public enum class PasskeyBackend(
   public val recipientsFileName: String,
   public val fileExtension: String,
+  public val fileNaming: PasskeyFileNaming,
 ) {
-  /** `pass`: `.gpg-id` recipients, `.gpg` files. */
-  OPENPGP(".gpg-id", ".gpg"),
-  /** `passage`: `.age-recipients` recipients, `.age` files. */
-  AGE(".age-recipients", ".age");
+  /** `pass`: `.gpg-id` recipients, `<rp>/<hex credential id>.gpg` files. */
+  OPENPGP(".gpg-id", ".gpg", PasskeyFileNaming.CREDENTIAL_ID),
+  /** `passage`: `.age-recipients` recipients, `<rp>/passkey.age` site-folder files. */
+  AGE(".age-recipients", ".age", PasskeyFileNaming.SITE_FOLDER);
+
+  /** Storage config for this backend's files under [passkeyDirectory]. */
+  public fun storageConfig(passkeyDirectory: String): PasskeyStorageConfig =
+    PasskeyStorageConfig(passkeyDirectory, fileExtension, fileNaming)
+
+  /** Whether [fileName] is one of this backend's passkey files. */
+  public fun isPasskeyFile(fileName: String): Boolean =
+    fileNaming.isPasskeyFile(fileName, fileExtension)
 
   public companion object {
     /** Recipients file names of all backends; a change to one can switch the store's backend. */

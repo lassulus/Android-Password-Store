@@ -26,6 +26,7 @@ public class NoFollowFileStore(
   private val repositoryRoot: File,
   private val passkeyDirectory: String = "fido2",
   private val fileExtension: String = ".gpg",
+  private val fileNaming: PasskeyFileNaming = PasskeyFileNaming.CREDENTIAL_ID,
   private val atomicWriter: DefaultAtomicCredentialWriter =
     DefaultAtomicCredentialWriter(repositoryRoot),
   private val inputLimits: PasskeyInputLimits = PasskeyInputLimits.DEFAULT,
@@ -39,7 +40,7 @@ public class NoFollowFileStore(
     get() = repositoryRoot.toPath().toAbsolutePath().normalize()
 
   private val passkeyRootPath: Path
-    get() = rootPath.resolve(passkeyDirectory)
+    get() = rootPath.resolve(passkeyDirectory).normalize()
 
   override suspend fun scanMetadata(
     rpId: String?
@@ -89,11 +90,9 @@ public class NoFollowFileStore(
 
             if (atomicWriter.isInternalArtifact(fileName)) continue
 
-            val ext = fileExtension.removePrefix(".")
-            if (!fileName.endsWith(".$ext")) continue
-
-            val hexId = fileName.removeSuffix(".$ext")
-            val credentialId = hexToBytes(hexId) ?: continue
+            // Only passkey files are listed; other entries (e.g. user/pass/otp) are never opened.
+            if (!fileNaming.isPasskeyFile(fileName, fileExtension)) continue
+            val credentialId = fileNaming.credentialIdFromName(fileName, fileExtension)
 
             val entryPath = rpDir.resolve(fileName)
             if (Files.isSymbolicLink(entryPath)) {
@@ -103,15 +102,13 @@ public class NoFollowFileStore(
 
             if (!Files.isRegularFile(entryPath, LinkOption.NOFOLLOW_LINKS)) continue
 
-            val ref =
-              PasskeyFileRef(
-                canonicalRpId = rawRpId,
-                credentialId = credentialId,
-                relativePath = "$rpDirName/$fileName",
-              )
-
-            val idKey = hexId
-            seenCredentialIds.getOrPut(idKey) { mutableListOf() }.add(ref)
+            val relativePath = "$rpDirName/$fileName"
+            if (credentialId != null) {
+              val idKey = credentialId.joinToString("") { "%02x".format(it) }
+              seenCredentialIds
+                .getOrPut(idKey) { mutableListOf() }
+                .add(PasskeyFileRef(rawRpId, credentialId, relativePath))
+            }
 
             val attrs =
               try {
@@ -126,7 +123,9 @@ public class NoFollowFileStore(
 
             results.add(
               ScannedCredentialFile(
-                ref = ref,
+                canonicalRpId = rawRpId,
+                relativePath = relativePath,
+                credentialId = credentialId,
                 fileSize = attrs.size(),
                 lastModifiedMillis = attrs.lastModifiedTime().toMillis(),
               )
@@ -148,8 +147,8 @@ public class NoFollowFileStore(
     }
   }
 
-  override suspend fun openExact(
-    ref: PasskeyFileRef,
+  override suspend fun openPath(
+    relativePath: String,
     expectedVersion: CredentialSourceVersion?,
   ): Result<OpenedPasskeyFile, FileStoreError> {
     return readMutex.withLock {
@@ -159,7 +158,7 @@ public class NoFollowFileStore(
         }
 
         val filePath =
-          resolveAndValidate(ref)
+          resolveAndValidate(relativePath)
             .fold(
               success = { it },
               failure = {
@@ -212,9 +211,9 @@ public class NoFollowFileStore(
           return@withLock Err(FileStoreError.VersionMismatch)
         }
 
-        Ok(OpenedPasskeyFile(ref, version, contentBytes))
+        Ok(OpenedPasskeyFile(relativePath, version, contentBytes))
       } catch (e: Exception) {
-        logcat(LogPriority.ERROR) { "openExact failed for ${ref.relativePath}: ${e.message}" }
+        logcat(LogPriority.ERROR) { "openPath failed for $relativePath: ${e.message}" }
         Err(FileStoreError.IoError(e.message ?: "Unknown error"))
       }
     }
@@ -231,7 +230,7 @@ public class NoFollowFileStore(
         }
 
         val filePath =
-          resolveAndValidate(ref, allowMissingTarget = true)
+          resolveAndValidate(ref.relativePath, allowMissingTarget = true)
             .fold(
               success = { it },
               failure = {
@@ -280,7 +279,7 @@ public class NoFollowFileStore(
         }
 
         val filePath =
-          resolveAndValidate(ref)
+          resolveAndValidate(ref.relativePath)
             .fold(
               success = { it },
               failure = {
@@ -322,7 +321,7 @@ public class NoFollowFileStore(
         }
 
         val filePath =
-          resolveAndValidate(ref)
+          resolveAndValidate(ref.relativePath)
             .fold(
               success = { it },
               failure = { error ->
@@ -395,11 +394,12 @@ public class NoFollowFileStore(
   }
 
   private fun resolveAndValidate(
-    ref: PasskeyFileRef,
+    relativePath: String,
     allowMissingTarget: Boolean = false,
   ): Result<Path, FileStoreError> {
-    // Refs of another backend's files (e.g. `.gpg` in an age store) must not be opened.
-    if (!ref.relativePath.endsWith(fileExtension)) {
+    // Only this backend's passkey files may be touched: not another backend's files (e.g. `.gpg`
+    // in an age store) and not the password entries sharing a site folder.
+    if (!fileNaming.isPasskeyFile(relativePath.substringAfterLast('/'), fileExtension)) {
       return Err(FileStoreError.MalformedPath)
     }
 
@@ -409,7 +409,7 @@ public class NoFollowFileStore(
       return Err(FileStoreError.NotDirectory)
     }
 
-    val segments = ref.relativePath.split("/")
+    val segments = relativePath.split("/")
     var current = passkeyRoot
 
     for ((index, segment) in segments.withIndex()) {

@@ -53,6 +53,13 @@ public interface PasskeyStorage {
     newSignCount: ULong,
   ): Result<Unit, Throwable>
 
+  public suspend fun updateSignCountExact(
+    ref: PasskeyFileRef,
+    newSignCount: ULong,
+  ): Result<Unit, Throwable> {
+    return updateSignCount(ref.credentialId, newSignCount)
+  }
+
   public suspend fun resolveSourceVersion(
     credentialId: ByteArray
   ): Result<SourceVersionResult, Throwable> {
@@ -105,9 +112,34 @@ public interface PasskeyStorage {
 }
 
 public data class PasskeyStorageConfig(
-  public val passkeyDirectory: String = "fido2",
+  public val passkeyDirectory: String = DEFAULT_PASSKEY_DIRECTORY,
   public val fileExtension: String = ".gpg",
-)
+  public val fileNaming: PasskeyFileNaming = PasskeyFileNaming.CREDENTIAL_ID,
+) {
+  init {
+    require(normalizePasskeyDirectory(passkeyDirectory) == passkeyDirectory) {
+      "Passkey directory must be normalized"
+    }
+  }
+
+  public companion object {
+    public const val DEFAULT_PASSKEY_DIRECTORY: String = "fido2"
+
+    /**
+     * Normalizes a user-entered passkey root relative to the store: surrounding whitespace and
+     * slashes are dropped and `.` or an empty value mean the store root itself (`""`). Returns
+     * `null` for values that could escape the store or point into hidden directories.
+     */
+    public fun normalizePasskeyDirectory(raw: String): String? {
+      val trimmed = raw.trim().trim('/')
+      if (trimmed.isEmpty() || trimmed == ".") return ""
+      if (trimmed.contains('\\')) return null
+      val segments = trimmed.split('/')
+      if (segments.any { it.isBlank() || it.startsWith(".") }) return null
+      return segments.joinToString("/")
+    }
+  }
+}
 
 public data class PasskeyMetadataWithRef(
   val metadata: PasskeyMetadata,

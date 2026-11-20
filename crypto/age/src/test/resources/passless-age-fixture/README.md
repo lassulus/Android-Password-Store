@@ -13,18 +13,20 @@ Encryption ran the real `age` binary (v1.3.2): `age -e -R store/.age-recipients 
 ```
 identities                                    # age-keygen output (X25519 secret key)
 store/.age-recipients                         # age1g69yrqpqlzcrem2jp0jjt6hr2z6lthfgaefxl7ltug9szj2sr9qspxvufk
-store/fido2/webauthn.io/a1b2c3d4e5f60718293a4b5c6d7e8f90.age
+store/fido2/webauthn.io/passkey.age
 ```
 
-Path scheme: `<store>/fido2/<rp-id>/<lowercase hex credential id>.age` (same as the pass backend,
-`.age` instead of `.gpg`). Recipients: nearest `.age-recipients` from the entry's directory up to
-the store root (here the store root's). PIN state, when set, lives at `fido2/pin_state.age`
-(synced) and `fido2/pin_retries.local.age` (local only, git-excluded); none is set here.
+Path scheme (site-folder layout): `<store>/<passkey root>/<rp-id>/passkey.age`, further accounts
+of the same rp id `passkey-<first 8 lowercase hex chars of the credential id>.age`; the passkey
+root defaults to `fido2`. The file was originally written by passless as
+`fido2/webauthn.io/a1b2c3d4e5f60718293a4b5c6d7e8f90.age` and renamed when the layout changed; age
+does not bind the file name, so the ciphertext is byte-identical. Recipients: nearest
+`.age-recipients` from the entry's directory up to the store root (here the store root's).
 
 Check with age itself:
 
 ```
-age -d -i identities store/fido2/webauthn.io/a1b2c3d4e5f60718293a4b5c6d7e8f90.age > payload.cbor
+age -d -i identities store/fido2/webauthn.io/passkey.age > payload.cbor
 ```
 
 The ciphertext is binary age v1 (`age-encryption.org/v1` header, one X25519 stanza), not armored.

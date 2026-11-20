@@ -62,15 +62,13 @@ class BackendSelectingPasskeyStorageTest {
   }
 
   @Test
-  fun `calls follow the backend switch without restart`() = runBlocking {
-    val pgp = InMemoryPasskeyStorage()
-    val age = InMemoryPasskeyStorage()
+  fun `calls follow backend and passkey root changes without restart`() = runBlocking {
+    val created = mutableMapOf<Pair<PasskeyBackend, String>, InMemoryPasskeyStorage>()
+    var directory = "fido2"
     val storage =
-      BackendSelectingPasskeyStorage(
-        root,
-        "fido2",
-        mapOf(PasskeyBackend.OPENPGP to pgp, PasskeyBackend.AGE to age),
-      )
+      BackendSelectingPasskeyStorage(root, { directory }) { backend, dir ->
+        InMemoryPasskeyStorage().also { created[backend to dir] = it }
+      }
     val credential =
       PasskeyCredential(
         credentialId = byteArrayOf(1, 2, 3),
@@ -82,11 +80,26 @@ class BackendSelectingPasskeyStorageTest {
 
     touch(".age-recipients")
     storage.saveCredential(credential, ByteArray(32)).unwrap()
-    assertEquals(1, age.listMetadata().unwrap().size)
-    assertTrue(pgp.listMetadata().unwrap().isEmpty())
+    assertEquals(1, created.getValue(PasskeyBackend.AGE to "fido2").listMetadata().unwrap().size)
+
+    directory = "www"
+    assertTrue(storage.listMetadata().unwrap().isEmpty())
+    assertEquals(setOf(PasskeyBackend.AGE to "fido2", PasskeyBackend.AGE to "www"), created.keys)
 
     File(root, ".age-recipients").delete()
     touch(".gpg-id")
     assertTrue(storage.listMetadata().unwrap().isEmpty())
+    assertTrue((PasskeyBackend.OPENPGP to "www") in created)
+  }
+
+  @Test
+  fun `passkey root is normalized and confined to the store`() {
+    assertEquals("fido2", PasskeyStorageConfig.normalizePasskeyDirectory(" /fido2/ "))
+    assertEquals("pass/www", PasskeyStorageConfig.normalizePasskeyDirectory("pass/www"))
+    assertEquals("", PasskeyStorageConfig.normalizePasskeyDirectory("."))
+    assertEquals("", PasskeyStorageConfig.normalizePasskeyDirectory(""))
+    for (bad in listOf("..", "www/../..", ".git", "a//b", "a\\b")) {
+      assertEquals(null, PasskeyStorageConfig.normalizePasskeyDirectory(bad), bad)
+    }
   }
 }

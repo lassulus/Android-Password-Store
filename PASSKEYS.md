@@ -31,11 +31,28 @@ Passkey `.gpg` files are binary OpenPGP by default. ASCII armor is optional and 
 
 ## age Files
 
-A store whose nearest recipients file above `fido2/` is `.age-recipients` (a
-[passage](https://github.com/FiloSottile/passage) store) keeps passkeys as binary age files at
-`fido2/<rp id>/<hex credential id>.age`, the same layout and CBOR payload as `.gpg`. The backend
-is detected on every storage call; `.gpg-id` wins when both files sit in the same directory, and
-OpenPGP remains the default when neither exists.
+A store whose nearest recipients file above the passkey folder is `.age-recipients` (a
+[passage](https://github.com/FiloSottile/passage) store) keeps passkeys as binary age files in one
+folder per site, next to the site's password entries, with the same CBOR payload as `.gpg`. The
+backend is detected on every storage call; `.gpg-id` wins when both files sit in the same
+directory, and OpenPGP remains the default when neither exists.
+
+The passkey folder is Settings → Passkeys → **Passkey folder** (`fido2` by default; `.` is the
+store root). It applies to both backends. File names inside `<passkey folder>/<rp id>/` (shared
+byte for byte with passless):
+
+| Backend | First passkey of a site | Further accounts |
+|---|---|---|
+| age (passage) | `passkey.age` | `passkey-<first 8 lowercase hex chars of the credential id>.age` |
+| OpenPGP (pass) | `<lowercase hex credential id>.gpg` | same |
+
+- In an age site folder only `passkey.age` and `passkey-*.age` are passkeys. Other files
+  (`user.age`, `pass.age`, `otp.age`, …) are never opened, decrypted or written. A new passkey
+  takes the first free name and never overwrites a file; if both names are taken, creation fails.
+- The credential id is no longer in the age file name. Listing a site decrypts only that site's
+  passkey files (with the device identity, no user interaction); the index then answers lookups
+  by credential id. Only a lookup by credential id that misses the index scans every site.
+- Old age files named `fido2/<rp id>/<hex credential id>.age` are not read; no migration.
 
 - Recipients come from the nearest `.age-recipients` walking up to the store root, like passage.
   X25519 (`age1…`), ML-KEM hybrid (`age1pq1…`) and SSH recipients are supported.
@@ -45,6 +62,8 @@ OpenPGP remains the default when neither exists.
 - The device has its own X25519 identity (Settings → Passkeys → age identity), stored encrypted
   with the hardware-backed Android Keystore. Add its `age1…` recipient to `.age-recipients` and
   re-encrypt the passkeys from a desktop.
+- The password list shows `.gpg` entries only, so neither `passkey*.age` nor other age entries
+  appear there.
 
 ## Caller Verification
 

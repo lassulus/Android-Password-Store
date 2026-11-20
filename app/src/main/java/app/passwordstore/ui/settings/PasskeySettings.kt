@@ -17,6 +17,7 @@ import androidx.fragment.app.FragmentActivity
 import app.passwordstore.R
 import app.passwordstore.crypto.AgeKey
 import app.passwordstore.passkeys.AgeIdentityStore
+import app.passwordstore.passkeys.storage.PasskeyStorageConfig
 import app.passwordstore.util.extensions.unsafeLazy
 import app.passwordstore.util.settings.PreferenceKeys
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -26,9 +27,11 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import de.Maxr1998.modernpreferences.Preference
 import de.Maxr1998.modernpreferences.PreferenceScreen
+import de.Maxr1998.modernpreferences.helpers.editText
 import de.Maxr1998.modernpreferences.helpers.onClick
 import de.Maxr1998.modernpreferences.helpers.pref
 import de.Maxr1998.modernpreferences.helpers.switch
+import de.Maxr1998.modernpreferences.preferences.EditTextPreference
 
 class PasskeySettings(private val activity: FragmentActivity) : SettingsProvider {
 
@@ -51,6 +54,23 @@ class PasskeySettings(private val activity: FragmentActivity) : SettingsProvider
         defaultValue = true
         titleRes = R.string.pref_passkey_auto_git_sync_title
         summaryRes = R.string.pref_passkey_auto_git_sync_summary
+      }
+      editText(PreferenceKeys.PASSKEY_DIRECTORY) {
+        defaultValue = PasskeyStorageConfig.DEFAULT_PASSKEY_DIRECTORY
+        titleRes = R.string.pref_passkey_directory_title
+        summaryProvider = { value ->
+          val directory = value?.toString()?.let(PasskeyStorageConfig::normalizePasskeyDirectory)
+          activity.getString(
+            R.string.pref_passkey_directory_summary,
+            directory?.ifEmpty { "." } ?: PasskeyStorageConfig.DEFAULT_PASSKEY_DIRECTORY,
+          )
+        }
+        textInputHintRes = R.string.pref_passkey_directory_hint
+        textChangeListener = EditTextPreference.OnTextChangeListener { _, text ->
+          val valid = PasskeyStorageConfig.normalizePasskeyDirectory(text.toString()) != null
+          if (!valid) showError(R.string.pref_passkey_directory_invalid)
+          valid
+        }
       }
       pref("_passkey_age_identity") {
         titleRes = R.string.pref_passkey_age_identity_title
