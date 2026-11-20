@@ -396,6 +396,7 @@
   <!-- Password decryption failure -->
   <string name="password_decryption_no_decryption_key">Decryption failed. No suitable decryption key found</string>
   <string name="password_decryption_unknown_error">Unknown decryption error</string>
+  <string name="password_decryption_no_age_identity">Decryption failed. This device has no age identity; set one under Settings › Passkeys › age identity.</string>
   <string name="password_decryption_no_autofill_with_passkey_error">Autofill with passkey data not possible</string>
 
   <!-- GitException messages -->

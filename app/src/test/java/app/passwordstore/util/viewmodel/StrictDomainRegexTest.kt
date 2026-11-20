@@ -24,6 +24,8 @@ class StrictDomainRegexTest {
     assertTrue("work/example.org/john.doe@example.org.gpg" matchedForDomain "example.org")
     assertTrue("example.org/john.doe@example.org.gpg" matchedForDomain "example.org")
     assertTrue("example.org.gpg" matchedForDomain "example.org")
+    assertTrue("www/example.org/pass.age" matchedForDomain "example.org")
+    assertTrue("example.org.age" matchedForDomain "example.org")
   }
 
   @Test

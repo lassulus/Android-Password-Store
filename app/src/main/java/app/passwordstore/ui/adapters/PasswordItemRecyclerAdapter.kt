@@ -14,6 +14,7 @@ import androidx.recyclerview.selection.ItemDetailsLookup
 import androidx.recyclerview.selection.Selection
 import androidx.recyclerview.widget.RecyclerView
 import app.passwordstore.R
+import app.passwordstore.data.password.PasswordEntryFiles
 import app.passwordstore.data.password.PasswordItem
 import app.passwordstore.util.coroutines.DispatcherProvider
 import app.passwordstore.util.viewmodel.SearchableRepositoryAdapter
@@ -71,7 +72,9 @@ open class PasswordItemRecyclerAdapter(
         folderIndicator.visibility = View.VISIBLE
         val count =
           withContext(dispatcherProvider.io()) {
-            item.file.listFiles { path -> path.isDirectory || path.extension == "gpg" }?.size ?: 0
+            item.file
+              .listFiles { path -> path.isDirectory || PasswordEntryFiles.isPasswordEntry(path) }
+              ?.size ?: 0
           }
         childCount.visibility = if (count > 0) View.VISIBLE else View.GONE
         childCount.text = "$count"

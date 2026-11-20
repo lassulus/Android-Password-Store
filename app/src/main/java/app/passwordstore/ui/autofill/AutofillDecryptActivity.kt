@@ -12,7 +12,9 @@ import android.os.Build
 import android.os.Bundle
 import android.view.autofill.AutofillManager
 import androidx.core.content.edit
+import androidx.lifecycle.lifecycleScope
 import app.passwordstore.R
+import app.passwordstore.crypto.AgeEntryCrypto
 import app.passwordstore.crypto.PGPIdentifier
 import app.passwordstore.crypto.errors.IncorrectPassphraseException
 import app.passwordstore.crypto.errors.NoDecryptionKeyAvailableException
@@ -24,11 +26,14 @@ import app.passwordstore.util.autofill.AutofillMatcher
 import app.passwordstore.util.autofill.AutofillPasskeyExclusion
 import app.passwordstore.util.autofill.AutofillPreferences
 import app.passwordstore.util.autofill.AutofillResponseBuilder
+import app.passwordstore.util.autofill.FieldFolderLogin
 import app.passwordstore.util.extensions.snackbar
 import app.passwordstore.util.extensions.toCharArray
 import app.passwordstore.util.extensions.wipe
+import app.passwordstore.util.services.getDefaultUsername
 import app.passwordstore.util.settings.PreferenceKeys
 import com.github.androidpasswordstore.autofillparser.AutofillAction
+import com.github.androidpasswordstore.autofillparser.Credentials
 import com.github.androidpasswordstore.autofillparser.FormOrigin
 import com.github.michaelbull.result.getError
 import com.github.michaelbull.result.getOrThrow
@@ -40,6 +45,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import logcat.LogPriority.ERROR
 import logcat.logcat
@@ -91,8 +97,14 @@ class AutofillDecryptActivity : BasePGPActivity() {
       intent?.getBooleanExtra(EXTRA_SEARCH_ACTION, true) ?: throw NullPointerException()
     action = if (isSearchAction) AutofillAction.Search else AutofillAction.Match
     logcat { action.toString() }
-    requireDecryptionKeysExist(PasswordRepository.getParentPath(filePath, repositoryPath)) { ids ->
-      getPersistentAndDecrypt(ids, action = "autofill")
+    val entryFile = File(filePath)
+    if (AgeEntryCrypto.isAgeEntry(entryFile)) {
+      lifecycleScope.launch { fillAgeEntry(entryFile) }
+    } else {
+      val parentPath = PasswordRepository.getParentPath(filePath, repositoryPath)
+      requireDecryptionKeysExist(parentPath) { ids ->
+        getPersistentAndDecrypt(ids, action = "autofill")
+      }
     }
   }
 
@@ -112,49 +124,7 @@ class AutofillDecryptActivity : BasePGPActivity() {
                 plaintextChars.wipe()
               }
             entry.clearExtra()
-            val directoryStructure = AutofillPreferences.directoryStructure(this)
-            val credentials =
-              AutofillPreferences.credentialsFromStoreEntry(
-                this,
-                encryptedFile,
-                entry,
-                origin,
-                directoryStructure,
-              )
-            val fillInDataset =
-              AutofillResponseBuilder.makeFillInDataset(
-                this@AutofillDecryptActivity,
-                credentials,
-                clientState,
-                action,
-              )
-            withContext(dispatcherProvider.main()) {
-              setResult(
-                RESULT_OK,
-                Intent().apply {
-                  putExtra(AutofillManager.EXTRA_AUTHENTICATION_RESULT, fillInDataset)
-                },
-              )
-              if (entry.hasTotp()) {
-                val otp = entry.currentOtp
-                val remainingTime = otp.remainingTime.inWholeSeconds
-                copyTextToClipboard(otp.value.toCharArray(), isSensitive = false)
-                otpTimer?.shutdownNow()
-                val otpTimerNew = Executors.newSingleThreadScheduledExecutor()
-                otpTimer = otpTimerNew
-                otpTimerNew.schedule(
-                  {
-                    copyTextToClipboard(entry.currentOtp.value.toCharArray(), isSensitive = false)
-                  },
-                  remainingTime,
-                  TimeUnit.SECONDS,
-                )
-              }
-              // Do not clear the entry here: the dataset's AutofillValues wrap the same CharArrays
-              // and are only parceled after finish(), so clearing would fill NUL characters.
-            }
-            updateAutofillMatches()
-            withContext(dispatcherProvider.main()) { finish() }
+            fillAndFinish(credentialsFor(encryptedFile, entry), entry)
           } finally {
             plaintextBytes.wipe()
           }
@@ -198,46 +168,7 @@ class AutofillDecryptActivity : BasePGPActivity() {
       decryptedEntryBytes.wipe()
       val entry = passwordEntryFactory.create(decryptedEntryChars)
       entry.clearExtra()
-      val directoryStructure = AutofillPreferences.directoryStructure(this)
-      val credentials =
-        AutofillPreferences.credentialsFromStoreEntry(
-          this,
-          encryptedFile,
-          entry,
-          origin,
-          directoryStructure,
-        )
-      val fillInDataset =
-        AutofillResponseBuilder.makeFillInDataset(
-          this@AutofillDecryptActivity,
-          credentials,
-          clientState,
-          action,
-        )
-      withContext(dispatcherProvider.main()) {
-        setResult(
-          RESULT_OK,
-          Intent().apply { putExtra(AutofillManager.EXTRA_AUTHENTICATION_RESULT, fillInDataset) },
-        )
-        if (entry.hasTotp()) {
-          val otp = entry.currentOtp
-          val remainingTime = otp.remainingTime.inWholeSeconds
-          copyTextToClipboard(otp.value.toCharArray(), isSensitive = false)
-          otpTimer?.shutdownNow()
-          val otpTimerNew = Executors.newSingleThreadScheduledExecutor()
-          otpTimer = otpTimerNew
-          otpTimerNew.schedule( // refresh otp once
-            { copyTextToClipboard(entry.currentOtp.value.toCharArray(), isSensitive = false) },
-            remainingTime,
-            TimeUnit.SECONDS,
-          )
-        }
-      }
-      onSuccess(lastResult.first) // pass ID
-
-      updateAutofillMatches()
-
-      withContext(dispatcherProvider.main()) { finish() }
+      fillAndFinish(credentialsFor(encryptedFile, entry), entry) { onSuccess(lastResult.first) }
     } else {
       passphrases.values.forEach { it?.wipe() }
       if (
@@ -271,6 +202,84 @@ class AutofillDecryptActivity : BasePGPActivity() {
       cachedPassphrases.values.forEach { it.wipe() }
       cachedPassphrases.clear()
     }
+  }
+
+  /** Credentials of a single [entry] in [file] under the configured directory structure. */
+  private fun credentialsFor(file: File, entry: PasswordEntry): Credentials =
+    AutofillPreferences.credentialsFromStoreEntry(
+      this,
+      file,
+      entry,
+      origin,
+      AutofillPreferences.directoryStructure(this),
+    )
+
+  /**
+   * Returns [credentials] to the Autofill framework, copies the OTP of [otpSource] (refreshed once)
+   * and finishes. [beforeFinish] runs once the result is set.
+   */
+  private suspend fun fillAndFinish(
+    credentials: Credentials,
+    otpSource: PasswordEntry,
+    beforeFinish: suspend () -> Unit = {},
+  ) {
+    val fillInDataset =
+      AutofillResponseBuilder.makeFillInDataset(
+        this@AutofillDecryptActivity,
+        credentials,
+        clientState,
+        action,
+      )
+    withContext(dispatcherProvider.main()) {
+      setResult(
+        RESULT_OK,
+        Intent().apply { putExtra(AutofillManager.EXTRA_AUTHENTICATION_RESULT, fillInDataset) },
+      )
+      if (otpSource.hasTotp()) {
+        val otp = otpSource.currentOtp
+        val remainingTime = otp.remainingTime.inWholeSeconds
+        copyTextToClipboard(otp.value.toCharArray(), isSensitive = false)
+        otpTimer?.shutdownNow()
+        val otpTimerNew = Executors.newSingleThreadScheduledExecutor()
+        otpTimer = otpTimerNew
+        otpTimerNew.schedule( // refresh otp once
+          { copyTextToClipboard(otpSource.currentOtp.value.toCharArray(), isSensitive = false) },
+          remainingTime,
+          TimeUnit.SECONDS,
+        )
+      }
+      // Do not clear the entries here: the dataset's AutofillValues wrap the same CharArrays and
+      // are only parceled after finish(), so clearing would fill NUL characters.
+    }
+    beforeFinish()
+    updateAutofillMatches()
+    withContext(dispatcherProvider.main()) { finish() }
+  }
+
+  /** Fills a passage (`.age`) entry; a field folder ([FieldFolderLogin]) fills as one login. */
+  private suspend fun fillAgeEntry(file: File) {
+    suspend fun decryptEntry(entryFile: File): PasswordEntry? {
+      val bytes = decryptAgeEntry(entryFile) ?: return null
+      val chars = bytes.toCharArray()
+      bytes.wipe()
+      return try {
+        passwordEntryFactory.create(chars).also { it.clearExtra() }
+      } finally {
+        chars.wipe()
+      }
+    }
+    val fields = FieldFolderLogin.of(file)
+    if (fields == null) {
+      val entry = decryptEntry(file) ?: return
+      fillAndFinish(credentialsFor(file, entry), entry)
+      return
+    }
+    val pass = decryptEntry(fields.pass) ?: return
+    val user = fields.user?.let { decryptEntry(it) ?: return }
+    val otp = fields.otp?.let { decryptEntry(it) ?: return }
+    val credentials =
+      FieldFolderLogin.credentials(pass, user, otp, getDefaultUsername()?.toCharArray())
+    fillAndFinish(credentials, otp ?: pass)
   }
 
   /** Update the autofill suggestion order (most recently used first). */

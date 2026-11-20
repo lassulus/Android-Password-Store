@@ -22,6 +22,7 @@ import androidx.recyclerview.selection.StorageStrategy
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import app.passwordstore.data.password.PasswordEntryFiles
 import app.passwordstore.data.password.PasswordItem
 import app.passwordstore.data.repo.PasswordRepository
 import app.passwordstore.injection.prefs.SettingsPreferences
@@ -61,7 +62,7 @@ private fun File.toPasswordItem(): PasswordItem {
   val root = PasswordRepository.getRepositoryDirectory()
   return if (isFile) {
     if (name == ".gpg-id") PasswordItem.newGpgIdItem(name, this, root)
-    else if (extension == "gpg")
+    else if (PasswordEntryFiles.isPasswordEntry(this))
       PasswordItem.newPassword(
         name,
         this,
@@ -288,7 +289,7 @@ constructor(
       if (isDirectory) {
         !isHidden
       } else {
-        !isHidden && file.extension == "gpg"
+        !isHidden && PasswordEntryFiles.isPasswordEntry(file)
       }
     }
   }
@@ -403,9 +404,9 @@ constructor(
       // We allow a lot of freedom in what a subdomain is, as long as it is not an
       // email address.
       val subdomain = """(?:(?:[^/@]+\.)?$escapedFilter)"""
-      // Matches the end of a path component, which is either the literal ".gpg" or a
-      // path separator.
-      val suffix = """(?:\.gpg|/)"""
+      // Matches the end of a path component, which is either an entry extension (".gpg", ".age")
+      // or a path separator.
+      val suffix = """(?:\.gpg|\.age|/)"""
       // Match any relative path with a component that is a subdomain of the filter.
       return Regex(prefix + subdomain + suffix, RegexOption.IGNORE_CASE)
     }

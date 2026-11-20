@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.service.autofill.Dataset
 import android.service.autofill.FillCallback
 import android.service.autofill.FillRequest
+import app.passwordstore.data.password.PasswordEntryFiles
 import app.passwordstore.data.repo.PasswordRepository
 import com.github.androidpasswordstore.autofillparser.AutofillAction
 import com.github.androidpasswordstore.autofillparser.AutofillScenario
@@ -18,7 +19,6 @@ import com.github.androidpasswordstore.autofillparser.Credentials
 import com.github.androidpasswordstore.autofillparser.FillableForm
 import com.github.androidpasswordstore.autofillparser.fillWith
 import java.nio.file.Files
-import kotlin.io.path.extension
 import kotlin.io.path.name
 import kotlin.io.path.nameWithoutExtension
 import logcat.LogPriority
@@ -52,7 +52,8 @@ interface AutofillResponseBuilder {
       .mapNotNull {
         when {
           !Files.isRegularFile(it) -> it.name
-          it.extension == "gpg" && !it.name.startsWith('.') -> it.nameWithoutExtension
+          PasswordEntryFiles.isPasswordEntry(it.toFile()) && !it.name.startsWith('.') ->
+            it.nameWithoutExtension
           else -> null
         }
       }

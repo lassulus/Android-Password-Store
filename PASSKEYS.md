@@ -62,8 +62,8 @@ byte for byte with passless):
 - The device has its own X25519 identity (Settings → Passkeys → age identity), stored encrypted
   with the hardware-backed Android Keystore. Add its `age1…` recipient to `.age-recipients` and
   re-encrypt the passkeys from a desktop.
-- The password list shows `.gpg` entries only, so neither `passkey*.age` nor other age entries
-  appear there.
+- The password list and Autofill show the other `.age` entries of a site folder as passwords and
+  never `passkey.age` / `passkey-*.age`.
 
 ## Caller Verification
 

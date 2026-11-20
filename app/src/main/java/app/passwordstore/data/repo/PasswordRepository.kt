@@ -6,6 +6,7 @@ package app.passwordstore.data.repo
 
 import androidx.core.content.edit
 import app.passwordstore.Application
+import app.passwordstore.data.password.PasswordEntryFiles
 import app.passwordstore.data.password.PasswordItem
 import app.passwordstore.util.extensions.sharedPrefs
 import app.passwordstore.util.extensions.unsafeLazy
@@ -217,15 +218,16 @@ object PasswordRepository {
     }
 
   /**
-   * Gets the .gpg files in a directory
+   * Gets the password entries (`.gpg`, `.age`) and directories in a directory
    *
    * @param path the directory path
-   * @return the list of gpg files in that directory
+   * @return the list of entries and directories in that directory
    */
   private fun getFilesList(path: File): ArrayList<File> {
     if (!path.exists()) return ArrayList()
     val files =
-      (path.listFiles { file -> file.isDirectory || file.extension == "gpg" } ?: emptyArray())
+      (path.listFiles { file -> file.isDirectory || PasswordEntryFiles.isPasswordEntry(file) }
+          ?: emptyArray())
         .toList()
     val items = ArrayList<File>()
     items.addAll(files)
@@ -256,7 +258,8 @@ object PasswordRepository {
       passwordList.add(
         if (file.isFile) {
           if (file.name == ".gpg-id") PasswordItem.newGpgIdItem(file.name, file, rootDir)
-          else if (file.extension == "gpg") PasswordItem.newPassword(file.name, file, rootDir)
+          else if (PasswordEntryFiles.isPasswordEntry(file))
+            PasswordItem.newPassword(file.name, file, rootDir)
           else PasswordItem.newOtherItem(file.name, file, rootDir)
         } else {
           PasswordItem.newCategory(file.name, file, rootDir)

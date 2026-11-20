@@ -35,6 +35,7 @@ import app.passwordstore.passkeys.crypto.ES256CryptoHandler
 import app.passwordstore.passkeys.crypto.PasskeyCryptoHandler
 import app.passwordstore.passkeys.crypto.PasskeyPgpDecryptor
 import app.passwordstore.passkeys.crypto.PgpUnlockContext
+import app.passwordstore.passkeys.passkeyDirectory
 import app.passwordstore.passkeys.provider.PasskeyAuthenticator
 import app.passwordstore.passkeys.provider.caller.WebAuthnCallerVerifier
 import app.passwordstore.passkeys.storage.BackendSelectingPasskeyStorage
@@ -45,11 +46,9 @@ import app.passwordstore.passkeys.storage.PasskeyBackend
 import app.passwordstore.passkeys.storage.PasskeyMetadataEnricher
 import app.passwordstore.passkeys.storage.PasskeyRepositoryState
 import app.passwordstore.passkeys.storage.PasskeyStorage
-import app.passwordstore.passkeys.storage.PasskeyStorageConfig
 import app.passwordstore.passkeys.storage.RepositoryGenerationProvider
 import app.passwordstore.passkeys.storage.SignatureCounterHighWaterMark
 import app.passwordstore.passkeys.storage.SignatureCounterTransaction
-import app.passwordstore.util.settings.PreferenceKeys
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -134,12 +133,7 @@ object PasskeysModule {
     @SettingsPreferences settings: SharedPreferences,
   ): PasskeyStorage {
     val repositoryRoot = File(context.filesDir, "store")
-    val passkeyDirectory = {
-      val default = PasskeyStorageConfig.DEFAULT_PASSKEY_DIRECTORY
-      PasskeyStorageConfig.normalizePasskeyDirectory(
-        settings.getString(PreferenceKeys.PASSKEY_DIRECTORY, null) ?: default
-      ) ?: default
-    }
+    val passkeyDirectory = { settings.passkeyDirectory() }
     val ageCryptoHandler = AgeCryptoHandler()
     val fileStorage =
       BackendSelectingPasskeyStorage(repositoryRoot, passkeyDirectory) { backend, directory ->

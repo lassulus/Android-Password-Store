@@ -21,7 +21,7 @@ data class PasswordItem(
   val aliases: List<String> = emptyList(),
 ) : Comparable<PasswordItem> {
 
-  val physicalName = name.replace("\\.gpg$".toRegex(), "")
+  val physicalName = PasswordEntryFiles.stripExtension(name)
 
   val fullPathToParent = PasswordRepository.getParentPath(file.absolutePath, rootDir.absolutePath)
 

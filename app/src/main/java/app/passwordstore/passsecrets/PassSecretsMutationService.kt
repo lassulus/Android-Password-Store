@@ -75,6 +75,8 @@ constructor(
     destinationDirectory: File,
     requestedName: String,
     repositoryRoot: File,
+    /** `gpg` for `pass` stores, `age` for `passage` stores. */
+    extension: String = "gpg",
   ): PasswordWritePlan {
     require(destinationDirectory.isDirectory) { "Password destination is not a directory" }
     require(requestedName.isNotBlank()) { "Password name must not be blank" }
@@ -103,7 +105,7 @@ constructor(
         requestedName
       }
 
-    val destinationFile = File(destinationDirectory, "$physicalName.gpg")
+    val destinationFile = File(destinationDirectory, "$physicalName.$extension")
     if (
       destinationFile.exists() &&
         (sourceFile == null || destinationFile.canonicalPath != sourceFile.canonicalPath)

@@ -40,6 +40,14 @@ The original documentation can be found [here](https://docs.passwordstore.app) a
 
 This fork periodically incorporates upstream fixes and features from the [original project](https://github.com/android-password-store/Android-Password-Store) and its active forks. Development here is focused on the passkey/WebAuthn credential provider feature; general password-store improvements are pulled in as they land upstream.
 
+## passage (age) stores
+
+A store (or folder) whose nearest recipients file is `.age-recipients` is a [passage](https://github.com/FiloSottile/passage) store. Its `.age` entries are listed, searched, shown, edited, moved, deleted and autofilled like `.gpg` entries; new entries are encrypted to the nearest `.age-recipients`. `.gpg-id` folders keep working with OpenPGP.
+
+- The phone decrypts with its own age identity (Settings → Passkeys → age identity). Add its `age1…` recipient to `.age-recipients` and re-encrypt the store with passage on a desktop. Age plugin identities (YubiKey, Secure Enclave) cannot be used on the phone.
+- `passkey.age` / `passkey-*.age` are passkeys and do not appear in the password list.
+- **One entry per field:** a folder that contains `pass.age` fills as one login. `pass` holds the password (first line), `user` the username (first line) and `otp` an `otpauth://` URI, e.g. `www/github.com/{pass,user,otp}.age`. Autofill search shows only `pass`; picking any of the three fills username, password and copies the OTP. Without `user`, the username comes from a `login:` line in `pass` or the default username.
+
 ## How-To: Transfer a PGP key to Password Store securely
 
 ### From GPG keyring

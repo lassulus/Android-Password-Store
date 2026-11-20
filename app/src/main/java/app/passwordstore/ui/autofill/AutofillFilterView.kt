@@ -25,12 +25,14 @@ import androidx.core.widget.addTextChangedListener
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.passwordstore.R
+import app.passwordstore.data.password.PasswordEntryFiles
 import app.passwordstore.data.password.PasswordItem
 import app.passwordstore.databinding.ActivityOreoAutofillFilterBinding
 import app.passwordstore.injection.prefs.SettingsPreferences
 import app.passwordstore.util.autofill.AutofillMatcher
 import app.passwordstore.util.autofill.AutofillPasskeyExclusion
 import app.passwordstore.util.autofill.AutofillPreferences
+import app.passwordstore.util.autofill.FieldFolderLogin
 import app.passwordstore.util.coroutines.DispatcherProvider
 import app.passwordstore.util.extensions.enableEdgeToEdgeView
 import app.passwordstore.util.extensions.viewBinding
@@ -243,7 +245,8 @@ class AutofillFilterView : AppCompatActivity() {
 
   private fun isFillableSearchResult(item: PasswordItem): Boolean {
     val relativeFile = item.file.relativeTo(item.rootDir)
-    return item.file.extension == "gpg" &&
+    return PasswordEntryFiles.isPasswordEntry(item.file) &&
+      !FieldFolderLogin.isSecondaryField(item.file) &&
       relativeFile.invariantSeparatorsPath.split('/').none { it.startsWith('.') } &&
       !AutofillPasskeyExclusion.isPasskeyCredentialFile(
         item.file,

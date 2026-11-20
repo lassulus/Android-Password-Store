@@ -20,7 +20,10 @@ import androidx.core.content.edit
 import androidx.fragment.app.setFragmentResultListener
 import androidx.lifecycle.lifecycleScope
 import app.passwordstore.R
+import app.passwordstore.crypto.AgeEntryCrypto
+import app.passwordstore.crypto.MissingAgeIdentityException
 import app.passwordstore.crypto.PGPIdentifier
+import app.passwordstore.crypto.errors.NoDecryptionKeyAvailableException
 import app.passwordstore.data.crypto.CryptoRepository
 import app.passwordstore.data.crypto.OpenPgpActivityInteractionHandler
 import app.passwordstore.data.crypto.OpenPgpApiBackend
@@ -46,6 +49,7 @@ import app.passwordstore.util.extensions.unsafeLazy
 import app.passwordstore.util.extensions.wipe
 import app.passwordstore.util.settings.Constants
 import app.passwordstore.util.settings.PreferenceKeys
+import com.github.michaelbull.result.fold
 import com.github.michaelbull.result.onErr
 import com.github.michaelbull.result.runCatching
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -163,6 +167,7 @@ open class BasePGPActivity : AppCompatActivity() {
   @Inject lateinit var repository: CryptoRepository
   @Inject lateinit var openPgpProviderRepository: OpenPgpProviderRepository
   @Inject lateinit var dispatcherProvider: DispatcherProvider
+  @Inject lateinit var ageEntryCrypto: AgeEntryCrypto
 
   /**
    * [onCreate] sets the window up with the right flags to prevent auth leaks through screenshots or
@@ -869,6 +874,34 @@ open class BasePGPActivity : AppCompatActivity() {
     ciphertext: ByteArray
   ): OpenPgpApiBackend.OperationResult<ByteArray> =
     openPgpProviderRepository.decrypt(ciphertext, openPgpInteractionHandler)
+
+  /**
+   * Decrypts a passage (`.age`) entry with the device age identity. Like a PGP key without a
+   * passphrase there is nothing to unlock; failures show the same dialogs as the PGP path and
+   * finish the activity.
+   */
+  protected suspend fun decryptAgeEntry(file: File): ByteArray? =
+    ageEntryCrypto
+      .decrypt(file)
+      .fold(
+        success = { it },
+        failure = { error ->
+          logcat { error.asLog() }
+          val message =
+            when (error) {
+              is MissingAgeIdentityException -> R.string.password_decryption_no_age_identity
+              is NoDecryptionKeyAvailableException -> R.string.password_decryption_no_decryption_key
+              else -> R.string.password_decryption_unknown_error
+            }
+          withContext(dispatcherProvider.main()) {
+            MaterialAlertDialogBuilder(this@BasePGPActivity)
+              .setMessage(message)
+              .setOnDismissListener { finish() }
+              .show()
+          }
+          null
+        },
+      )
 
   protected open suspend fun decryptWithOpenPgpProvider() {}
 

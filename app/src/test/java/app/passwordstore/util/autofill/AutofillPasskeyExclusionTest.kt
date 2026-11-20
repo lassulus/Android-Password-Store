@@ -52,4 +52,33 @@ class AutofillPasskeyExclusionTest {
     Files.createSymbolicLink(link.toPath(), target.toPath())
     assertTrue(AutofillPasskeyExclusion.isPasskeyCredentialFile(File(link, "0123abcd.gpg"), root))
   }
+
+  @Test
+  fun passageSiteFolderExcludesOnlyPasskeyFiles() {
+    val root = tempFolder.newFolder("store")
+    File(root, ".age-recipients").writeText("age1example\n")
+    fun excluded(path: String, folder: String) =
+      AutofillPasskeyExclusion.isPasskeyCredentialFile(File(root, path), root, true, folder)
+    for (folder in listOf("www", "")) {
+      val site = if (folder.isEmpty()) "github.com" else "$folder/github.com"
+      assertTrue(excluded("$site/passkey.age", folder))
+      assertTrue(excluded("$site/passkey-a1b2c3d4.age", folder))
+      listOf("user.age", "pass.age", "otp.age").forEach {
+        assertFalse(excluded("$site/$it", folder))
+      }
+    }
+  }
+
+  @Test
+  fun passStoreFollowsTheConfiguredPasskeyFolder() {
+    val root = tempFolder.newFolder("store")
+    fun excluded(path: String, folder: String) =
+      AutofillPasskeyExclusion.isPasskeyCredentialFile(File(root, path), root, false, folder)
+    assertTrue(excluded("www/example.org/0123abcd.gpg", "www"))
+    assertFalse(excluded("fido2/example.org/0123abcd.gpg", "www"))
+    // The store root as passkey folder only claims `<rp>/<hex id>.gpg`.
+    assertTrue(excluded("example.org/0123abcd.gpg", ""))
+    assertFalse(excluded("example.org/john.gpg", ""))
+    assertFalse(excluded("work/example.org/0123abcd.gpg", ""))
+  }
 }

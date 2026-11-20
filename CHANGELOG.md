@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file
 - Onboarding can initialise a new local store for age instead of PGP ("Use age (passage) instead"), and a cloned passage store is accepted without selecting a PGP key
 - age passkeys live in the site's folder next to its password entries (`<passkey folder>/<rp id>/passkey.age`, further accounts `passkey-<8 hex>.age`), matching passless
 - Settings → Passkeys → Passkey folder sets where passkeys are stored inside the store (default `fido2`, `.` for the store root)
+- Password entries in passage stores: `.age` entries are listed, searched, shown, created, edited and autofilled with the device age identity, encrypted to the nearest `.age-recipients`; a folder with `pass.age` (plus optional `user.age`, `otp.age`) fills as one login
 
 ### Changed
 

@@ -13,6 +13,7 @@ import android.view.View
 import androidx.core.content.edit
 import androidx.lifecycle.lifecycleScope
 import app.passwordstore.R
+import app.passwordstore.crypto.AgeEntryCrypto
 import app.passwordstore.crypto.PGPIdentifier
 import app.passwordstore.crypto.errors.IncorrectPassphraseException
 import app.passwordstore.crypto.errors.NoDecryptionKeyAvailableException
@@ -76,7 +77,12 @@ class DecryptActivity : BasePGPActivity() {
       }
       fab.setOnClickListener { copyPassword() }
     }
-    requireDecryptionKeysExist(relativeParentPath) { ids -> getPersistentAndDecrypt(ids) }
+    val entryFile = File(fullPath)
+    if (AgeEntryCrypto.isAgeEntry(entryFile)) {
+      lifecycleScope.launch { decryptAgeEntry(entryFile)?.let { showEntry(it) } }
+    } else {
+      requireDecryptionKeysExist(relativeParentPath) { ids -> getPersistentAndDecrypt(ids) }
+    }
   }
 
   override fun onDestroy() {
@@ -122,6 +128,17 @@ class DecryptActivity : BasePGPActivity() {
     }
   }
 
+  /** Shows a decrypted entry and keeps it AES-encrypted in memory for copy, share and edit. */
+  private suspend fun showEntry(decryptedEntryBytes: ByteArray) {
+    val decryptedEntryChars = decryptedEntryBytes.toCharArray()
+    decryptedEntryBytes.wipe()
+    val entry = passwordEntryFactory.create(decryptedEntryChars)
+    encryptedEntryChars = AESEncryption.encrypt(decryptedEntryChars)
+    decryptedEntryChars.wipe()
+    entry.clearExtraChars()
+    createPasswordUI(entry)
+  }
+
   override suspend fun decryptWithPassphrase(
     passphrases: Map<String, CharArray?>,
     identifiers: List<PGPIdentifier>,
@@ -134,13 +151,7 @@ class DecryptActivity : BasePGPActivity() {
     if (lastResult.second.isOk) {
       val decryptedEntryBytes = lastResult.second.getOrThrow().toByteArray()
       lastResult.second.getOrThrow().wipe()
-      val decryptedEntryChars = decryptedEntryBytes.toCharArray()
-      decryptedEntryBytes.wipe()
-      val entry = passwordEntryFactory.create(decryptedEntryChars)
-      encryptedEntryChars = AESEncryption.encrypt(decryptedEntryChars)
-      decryptedEntryChars.wipe()
-      entry.clearExtraChars()
-      createPasswordUI(entry)
+      showEntry(decryptedEntryBytes)
       onSuccess(lastResult.first) // pass ID for which the entry was successfully decrypted
     } else {
       passphrases.values.forEach { it?.wipe() }
@@ -243,6 +254,7 @@ class DecryptActivity : BasePGPActivity() {
       intent.putExtra(PasswordCreationActivity.EXTRA_PHYSICAL_FILE_NAME, name)
       intent.putExtra(PasswordCreationActivity.EXTRA_ENTRY, encrypted)
       intent.putExtra(PasswordCreationActivity.EXTRA_EDITING, true)
+      intent.putExtra(PasswordCreationActivity.EXTRA_FILE_EXTENSION, File(fullPath).extension)
       startActivity(intent)
       finish()
     }

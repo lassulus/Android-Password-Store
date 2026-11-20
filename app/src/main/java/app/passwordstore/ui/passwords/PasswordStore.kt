@@ -24,6 +24,7 @@ import androidx.fragment.app.commit
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import app.passwordstore.R
+import app.passwordstore.data.password.PasswordEntryFiles
 import app.passwordstore.data.password.PasswordItem
 import app.passwordstore.data.repo.PasswordRepository
 import app.passwordstore.databinding.ActivityPwdstoreBinding
@@ -710,7 +711,9 @@ class PasswordStore : BaseGitActivity() {
   fun matchPasswordWithApp(item: PasswordItem) {
     val repoPath = PasswordRepository.getRepositoryDirectory().absolutePath
     val path =
-      PasswordRepository.getRelativePath(item.file.absolutePath, "$repoPath/").replace(".gpg", "")
+      PasswordEntryFiles.stripExtension(
+        PasswordRepository.getRelativePath(item.file.absolutePath, "$repoPath/")
+      )
     val data = Intent()
     data.putExtra("path", path)
     setResult(RESULT_OK, data)

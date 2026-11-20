@@ -32,6 +32,7 @@ import app.passwordstore.data.passfile.splitToCharArrayListAt
 import app.passwordstore.data.passfile.trimEnd
 import app.passwordstore.data.repo.PasswordRepository
 import app.passwordstore.databinding.PasswordCreationActivityBinding
+import app.passwordstore.passkeys.storage.PasskeyBackend
 import app.passwordstore.passsecrets.PassSecretsMapStore
 import app.passwordstore.passsecrets.PassSecretsMutationService
 import app.passwordstore.ui.dialogs.DicewarePasswordGeneratorDialogFragment
@@ -388,7 +389,8 @@ class PasswordCreationActivity : BasePGPActivity() {
     }
 
     pendingSave = false
-    requireEncryptionKeysExist(binding.directory.text.toString()) { ids -> encrypt(ids) }
+    if (storeBackend() == PasskeyBackend.AGE) encrypt(identifiers = null)
+    else requireEncryptionKeysExist(binding.directory.text.toString()) { ids -> encrypt(ids) }
   }
 
   private fun updateMappedSuggestedNameAfterUnlock() {
@@ -401,7 +403,14 @@ class PasswordCreationActivity : BasePGPActivity() {
   private fun sourcePasswordFile(): File? {
     if (!editing) return null
     val physicalName = suggestedPhysicalName ?: return null
-    return File(fullPath.trimEnd('/'), "$physicalName.gpg")
+    val extension = intent.getStringExtra(EXTRA_FILE_EXTENSION) ?: "gpg"
+    return File(fullPath.trimEnd('/'), "$physicalName.$extension")
+  }
+
+  /** The destination folder's store: the nearest `.gpg-id` or `.age-recipients` decides. */
+  private fun storeBackend(): PasskeyBackend {
+    val repository = File(repoPath)
+    return PasskeyBackend.detect(repository, destination().directory.relativeTo(repository).path)
   }
 
   /** Where an entry is written: the [directory] and the requested (logical) entry name. */
@@ -543,8 +552,11 @@ class PasswordCreationActivity : BasePGPActivity() {
       otpImportButton.isVisible = !hasTotp
     }
 
-  /** Encrypts the password and extra content, then atomically updates Pass-Secrets metadata. */
-  private fun encrypt(identifiers: List<PGPIdentifier>) {
+  /**
+   * Encrypts the password and extra content, then atomically updates Pass-Secrets metadata.
+   * [identifiers] is `null` for a passage (age) destination, which encrypts to `.age-recipients`.
+   */
+  private fun encrypt(identifiers: List<PGPIdentifier>?) {
     with(binding) {
       if (!validateInput()) return@with
       val editUsername = username.text?.let { CharArray(it.length) { i -> it[i] } } ?: charArrayOf()
@@ -590,6 +602,7 @@ class PasswordCreationActivity : BasePGPActivity() {
               destinationDirectory,
               requestedName,
               File(repoPath),
+              extension = storeBackend().fileExtension.removePrefix("."),
             )
           if (!plan.destinationFile.isInsideRepository()) {
             snackbar(message = getString(R.string.message_error_destination_outside_repo))
@@ -608,36 +621,48 @@ class PasswordCreationActivity : BasePGPActivity() {
           val contentBytes = contentChars.toByteArray()
           contentChars.wipe()
 
-          val (succeededUserEmails, result) =
-            withContext(dispatcherProvider.default()) {
-              repository.encrypt(
-                identifiers,
-                ByteArrayInputStream(contentBytes),
-                ByteArrayOutputStream(),
-              )
-            }
-          contentBytes.wipe()
+          val (succeededUserEmails, failedUserEmails, encryptedBytes) =
+            if (identifiers == null) {
+              val encrypted =
+                try {
+                  ageEntryCrypto.encrypt(plan.destinationFile, contentBytes).getOrThrow()
+                } finally {
+                  contentBytes.wipe()
+                }
+              Triple(encrypted.recipients, emptyList(), encrypted.ciphertext)
+            } else {
+              val (encryptedFor, result) =
+                withContext(dispatcherProvider.default()) {
+                  repository.encrypt(
+                    identifiers,
+                    ByteArrayInputStream(contentBytes),
+                    ByteArrayOutputStream(),
+                  )
+                }
+              contentBytes.wipe()
 
-          if (result.isErr) throw result.unwrapError()
-          if (succeededUserEmails.isNullOrEmpty()) throw UnusableKeyException
+              if (result.isErr) throw result.unwrapError()
+              if (encryptedFor.isNullOrEmpty()) throw UnusableKeyException
 
-          val failedUserEmails =
-            identifiers
-              .map { id ->
-                repository.getEmailFromKeyId(id)
-                  ?: run {
-                    if (!repository.hasKey(id))
-                      "\n${id}: ${getString(R.string.pgp_unknown_key_identifier)}"
-                    else
-                      "\n${id}: ${getString(R.string.password_creation_file_encryption_failed_expired_key)}"
+              val notEncryptedFor =
+                identifiers
+                  .map { id ->
+                    repository.getEmailFromKeyId(id)
+                      ?: run {
+                        if (!repository.hasKey(id))
+                          "\n${id}: ${getString(R.string.pgp_unknown_key_identifier)}"
+                        else
+                          "\n${id}: ${getString(R.string.password_creation_file_encryption_failed_expired_key)}"
+                      }
                   }
-              }
-              .distinct()
-              .filter { it !in succeededUserEmails }
+                  .distinct()
+                  .filter { it !in encryptedFor }
 
-          val encryptedOutput = result.getOrThrow()
-          val encryptedBytes = encryptedOutput.toByteArray()
-          encryptedOutput.wipe()
+              val encryptedOutput = result.getOrThrow()
+              val pgpBytes = encryptedOutput.toByteArray()
+              encryptedOutput.wipe()
+              Triple(encryptedFor, notEncryptedFor, pgpBytes)
+            }
           try {
             passSecretsMutationService.commitPasswordWrite(plan, encryptedBytes)
           } finally {
@@ -759,5 +784,7 @@ class PasswordCreationActivity : BasePGPActivity() {
     const val EXTRA_ENTRY = "EXTRA_ENTRY"
     const val EXTRA_GENERATE_PASSWORD = "EXTRA_GENERATE_PASSWORD"
     const val EXTRA_EDITING = "EXTRA_EDITING"
+    /** Extension (`gpg` or `age`) of the entry being edited. */
+    const val EXTRA_FILE_EXTENSION = "EXTRA_FILE_EXTENSION"
   }
 }
