@@ -126,7 +126,7 @@ class DefaultPassRecipientResolverTest {
   }
 
   @Test
-  fun `missing gpg-id fails with GpgIdNotFound`() = runTest {
+  fun `missing gpg-id fails with RecipientsFileNotFound`() = runTest {
     keyManager.addKey(secretKey, true).unwrap()
 
     val target = File(rootDir, "fido2/example.com/cred.gpg")
@@ -134,7 +134,7 @@ class DefaultPassRecipientResolverTest {
 
     val result = resolver().resolveFor(target)
     assertTrue(result.isErr)
-    assertIs<RecipientPolicyError.GpgIdNotFound>(result.unwrapError())
+    assertEquals(RecipientPolicyError.RecipientsFileNotFound(".gpg-id"), result.unwrapError())
   }
 
   @Test

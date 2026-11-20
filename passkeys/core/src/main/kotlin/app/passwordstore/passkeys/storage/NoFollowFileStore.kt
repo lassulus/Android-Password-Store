@@ -398,6 +398,11 @@ public class NoFollowFileStore(
     ref: PasskeyFileRef,
     allowMissingTarget: Boolean = false,
   ): Result<Path, FileStoreError> {
+    // Refs of another backend's files (e.g. `.gpg` in an age store) must not be opened.
+    if (!ref.relativePath.endsWith(fileExtension)) {
+      return Err(FileStoreError.MalformedPath)
+    }
+
     val passkeyRoot = passkeyRootPath
 
     if (!safeIsDirectory(passkeyRoot)) {

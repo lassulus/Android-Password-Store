@@ -162,12 +162,15 @@ public class IndexedPasskeyStorage(
 
   private suspend fun reconcileGitChanges(changedPaths: Set<String>): Boolean {
     if (generationProvider == null || !indexLoaded) return false
-    if (changedPaths.any { it == ".gpg-id" }) return false
+    if (changedPaths.any { it in PasskeyBackend.recipientsFileNames }) return false
 
     val changedPasskeyPaths =
       changedPaths
         .asSequence()
-        .filter { it.startsWith("fido2/") && it.endsWith(".gpg") }
+        .filter { path ->
+          path.startsWith("fido2/") &&
+            PasskeyBackend.entries.any { path.endsWith(it.fileExtension) }
+        }
         .map { it.removePrefix("fido2/") }
         .toSet()
 
@@ -199,8 +202,10 @@ public class IndexedPasskeyStorage(
 
     val rpDirectory = pathSegments[0]
     val fileName = pathSegments[1]
-    if (!fileName.endsWith(".gpg")) return false
-    val credentialId = hexToBytes(fileName.removeSuffix(".gpg")) ?: return false
+    val extension =
+      PasskeyBackend.entries.firstOrNull { fileName.endsWith(it.fileExtension) }?.fileExtension
+        ?: return false
+    val credentialId = hexToBytes(fileName.removeSuffix(extension)) ?: return false
 
     val provisionalRef =
       try {

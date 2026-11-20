@@ -78,6 +78,7 @@ jobs:
           ./gradlew
           :passkeys:core:test
           :passkeys:provider:testDebugUnitTest
+          :crypto:age:test
           :crypto:pgpainless:test
           :app:testDebugUnitTest
 
@@ -88,6 +89,7 @@ jobs:
           name: Test report (passkey-tests)
           path: |
             app/build/reports/tests
+            crypto/age/build/reports/tests
             crypto/pgpainless/build/reports/tests
             passkeys/core/build/reports/tests
             passkeys/provider/build/reports/tests

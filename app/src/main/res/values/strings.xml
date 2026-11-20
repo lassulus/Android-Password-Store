@@ -140,6 +140,16 @@
   <string name="pref_passkey_signature_counter_policy_summary">Always reports counter = 0 to websites, preventing Git merge conflicts across devices. Trade-off: websites cannot detect if your passkey was cloned to another device. Disable only for local-only (non-synced) repositories to enable monotonic counter with clone detection.</string>
   <string name="pref_passkey_auto_git_sync_title">Auto Git sync</string>
   <string name="pref_passkey_auto_git_sync_summary">Automatically sync passkeys with Git remote when repository is configured.</string>
+  <string name="pref_passkey_age_identity_title">age identity (passage stores)</string>
+  <string name="pref_passkey_age_identity_summary_none">Not set. Needed for passkeys in a store with .age-recipients.</string>
+  <string name="passkey_age_identity_message">%1$s\n\nAdd this recipient to .age-recipients in your passage store and re-encrypt the passkeys so this device can use them.</string>
+  <string name="passkey_age_identity_copy">Copy</string>
+  <string name="passkey_age_identity_replace">Replace</string>
+  <string name="passkey_age_identity_replace_title">Replace age identity? Files encrypted only to the current one become unreadable here.</string>
+  <string name="passkey_age_identity_generate">Generate new key</string>
+  <string name="passkey_age_identity_import">Import key (AGE-SECRET-KEY-1…)</string>
+  <string name="passkey_age_identity_invalid">Not a single X25519 age identity.</string>
+  <string name="passkey_age_identity_save_failed">Cannot protect the key: hardware-backed Android Keystore is unavailable.</string>
   <string name="pref_clear_clipboard_title">Scramble clipboard history</string>
   <string name="pref_clear_clipboard_summary">Flood clipboard history (Samsung devices, Gboard) with random numbers, wiping out any passwords.</string>
   <string name="pref_git_delete_repo_summary">Deletes local (hidden) repository.</string>

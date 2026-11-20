@@ -29,6 +29,23 @@ Passkey `.gpg` files are binary OpenPGP by default. ASCII armor is optional and 
 - Tests must cover binary ciphertext produced with the production encryption options, not only
   ASCII-armored fixtures.
 
+## age Files
+
+A store whose nearest recipients file above `fido2/` is `.age-recipients` (a
+[passage](https://github.com/FiloSottile/passage) store) keeps passkeys as binary age files at
+`fido2/<rp id>/<hex credential id>.age`, the same layout and CBOR payload as `.gpg`. The backend
+is detected on every storage call; `.gpg-id` wins when both files sit in the same directory, and
+OpenPGP remains the default when neither exists.
+
+- Recipients come from the nearest `.age-recipients` walking up to the store root, like passage.
+  X25519 (`age1…`), ML-KEM hybrid (`age1pq1…`) and SSH recipients are supported.
+- Plugin recipients (`age1yubikey1…`, `age1se1…`, `age1tpm1…`) cannot be wrapped on Android. A
+  recipients file containing one makes passkey creation and signature-counter rewrites fail closed;
+  reading still works as long as the device's own recipient is listed.
+- The device has its own X25519 identity (Settings → Passkeys → age identity), stored encrypted
+  with the hardware-backed Android Keystore. Add its `age1…` recipient to `.age-recipients` and
+  re-encrypt the passkeys from a desktop.
+
 ## Caller Verification
 
 Native Android applications and privileged browsers use different trust paths.
@@ -107,6 +124,7 @@ Run the same suite locally with:
 ```bash
 ./gradlew :passkeys:core:test \
   :passkeys:provider:testDebugUnitTest \
+  :crypto:age:test \
   :crypto:pgpainless:test \
   :app:testDebugUnitTest
 ```

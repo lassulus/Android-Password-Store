@@ -51,6 +51,7 @@ dependencies {
   coreLibraryDesugaring(libs.android.desugarJdkLibs)
   implementation(projects.autofillParser)
   implementation(projects.coroutineUtils)
+  implementation(projects.crypto.age)
   implementation(projects.crypto.pgpainless)
   implementation(projects.format.common)
   implementation(projects.passgen.diceware)

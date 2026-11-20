@@ -61,7 +61,7 @@ public class DefaultPassRecipientResolver(
       val gpgIdFile =
         findGpgIdFile(targetDir, canonicalRoot)
           ?: return@withContext com.github.michaelbull.result.Err(
-            RecipientPolicyError.GpgIdNotFound
+            RecipientPolicyError.RecipientsFileNotFound(gpgIdFileName)
           )
 
       if (java.nio.file.Files.isSymbolicLink(gpgIdFile.toPath())) {
@@ -161,7 +161,11 @@ public class DefaultPassRecipientResolver(
         gpgIdFile.readLines()
       } catch (e: Exception) {
         return com.github.michaelbull.result.Err(
-          RecipientPolicyError.MalformedGpgId(0, "Cannot read file: ${e.message}")
+          RecipientPolicyError.MalformedRecipientsFile(
+            gpgIdFileName,
+            0,
+            "Cannot read file: ${e.message}",
+          )
         )
       }
 
@@ -180,7 +184,11 @@ public class DefaultPassRecipientResolver(
       val identifier = PGPIdentifier.fromString(trimmed)
       if (identifier == null) {
         return com.github.michaelbull.result.Err(
-          RecipientPolicyError.MalformedGpgId(index + 1, "Unrecognized identifier format")
+          RecipientPolicyError.MalformedRecipientsFile(
+            gpgIdFileName,
+            index + 1,
+            "Unrecognized identifier format",
+          )
         )
       }
       identifiers.add(identifier)

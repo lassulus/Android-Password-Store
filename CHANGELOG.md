@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file
 
 ## [Unreleased]
 
+### Added
+
+- Passkeys can be stored in a [passage](https://github.com/FiloSottile/passage) (age) store: stores with a `.age-recipients` file use `.age` passkey files, decrypted with an age identity generated or imported under Settings → Passkeys
+
 ### Changed
 
 - PGP crypto operations now run on dedicated threads for better app responsiveness

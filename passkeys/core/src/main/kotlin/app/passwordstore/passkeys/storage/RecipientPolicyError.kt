@@ -10,9 +10,14 @@ public sealed interface RecipientPolicyError {
 
   public data object SymlinkRejected : RecipientPolicyError
 
-  public data object GpgIdNotFound : RecipientPolicyError
+  /** No recipients file ([fileName], `.gpg-id` or `.age-recipients`) between target and root. */
+  public data class RecipientsFileNotFound(val fileName: String) : RecipientPolicyError
 
-  public data class MalformedGpgId(val line: Int, val reason: String) : RecipientPolicyError
+  public data class MalformedRecipientsFile(
+    val fileName: String,
+    val line: Int,
+    val reason: String,
+  ) : RecipientPolicyError
 
   public data class RecipientNotFound(val identifier: String) : RecipientPolicyError
 

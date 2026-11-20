@@ -9,6 +9,10 @@ package app.passwordstore.injection.passkeys
 
 import android.content.Context
 import android.content.SharedPreferences
+import app.passwordstore.crypto.AgeCryptoHandler
+import app.passwordstore.crypto.AgeCryptoOptions
+import app.passwordstore.crypto.AgePasskeyDecryptor
+import app.passwordstore.crypto.AgeRecipientResolver
 import app.passwordstore.crypto.DefaultPassRecipientResolver
 import app.passwordstore.crypto.PGPKey
 import app.passwordstore.crypto.PGPKeyManager
@@ -17,7 +21,9 @@ import app.passwordstore.crypto.PgpainlessPasskeyDecryptor
 import app.passwordstore.data.crypto.OpenPgpInteractionCoordinator
 import app.passwordstore.data.crypto.OpenPgpProviderRepository
 import app.passwordstore.injection.prefs.SettingsPreferences
+import app.passwordstore.passkeys.AgeIdentityStore
 import app.passwordstore.passkeys.BiometricPasskeyAuthenticator
+import app.passwordstore.passkeys.DefaultPgpUnlockContext
 import app.passwordstore.passkeys.DefaultRepositoryGenerationProvider
 import app.passwordstore.passkeys.DefaultWebAuthnCallerVerifier
 import app.passwordstore.passkeys.KeystorePgpUnlockContext
@@ -31,9 +37,11 @@ import app.passwordstore.passkeys.crypto.PasskeyPgpDecryptor
 import app.passwordstore.passkeys.crypto.PgpUnlockContext
 import app.passwordstore.passkeys.provider.PasskeyAuthenticator
 import app.passwordstore.passkeys.provider.caller.WebAuthnCallerVerifier
+import app.passwordstore.passkeys.storage.BackendSelectingPasskeyStorage
 import app.passwordstore.passkeys.storage.FilePasskeyStorage
 import app.passwordstore.passkeys.storage.IndexedPasskeyStorage
 import app.passwordstore.passkeys.storage.PassRecipientResolver
+import app.passwordstore.passkeys.storage.PasskeyBackend
 import app.passwordstore.passkeys.storage.PasskeyMetadataEnricher
 import app.passwordstore.passkeys.storage.PasskeyRepositoryState
 import app.passwordstore.passkeys.storage.PasskeyStorage
@@ -121,10 +129,11 @@ object PasskeysModule {
     recipientResolver: PassRecipientResolver<PGPKey>,
     generationProvider: RepositoryGenerationProvider,
     metadataIndex: PasskeyMetadataIndex,
+    ageIdentityStore: AgeIdentityStore,
   ): PasskeyStorage {
     val repositoryRoot = File(context.filesDir, "store")
-    val passkeyConfig = PasskeyStorageConfig(passkeyDirectory = "fido2", fileExtension = ".gpg")
-    val fileStorage =
+    val passkeyDirectory = "fido2"
+    val pgpStorage =
       FilePasskeyStorage(
         repositoryRoot = repositoryRoot,
         cryptoHandler = cryptoHandler,
@@ -132,8 +141,26 @@ object PasskeysModule {
         pgpUnlockContext = pgpUnlockContext,
         recipientResolver = recipientResolver,
         encryptionOptions = app.passwordstore.crypto.PGPEncryptOptions.Builder().build(),
-        config = passkeyConfig,
+        config = PasskeyStorageConfig(passkeyDirectory, PasskeyBackend.OPENPGP.fileExtension),
         generationProvider = generationProvider,
+      )
+    val ageCryptoHandler = AgeCryptoHandler()
+    val ageStorage =
+      FilePasskeyStorage(
+        repositoryRoot = repositoryRoot,
+        cryptoHandler = ageCryptoHandler,
+        passkeyPgpDecryptor = AgePasskeyDecryptor(ageCryptoHandler) { ageIdentityStore.load() },
+        pgpUnlockContext = DefaultPgpUnlockContext(),
+        recipientResolver = AgeRecipientResolver(repositoryRoot),
+        encryptionOptions = AgeCryptoOptions,
+        config = PasskeyStorageConfig(passkeyDirectory, PasskeyBackend.AGE.fileExtension),
+        generationProvider = generationProvider,
+      )
+    val fileStorage =
+      BackendSelectingPasskeyStorage(
+        repositoryRoot,
+        passkeyDirectory,
+        mapOf(PasskeyBackend.OPENPGP to pgpStorage, PasskeyBackend.AGE to ageStorage),
       )
     val enricher = PasskeyMetadataEnricher { metadata ->
       val entry = metadataIndex.get(metadata.credentialId)

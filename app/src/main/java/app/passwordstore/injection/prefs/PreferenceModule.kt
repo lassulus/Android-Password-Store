@@ -50,4 +50,9 @@ class PreferenceModule {
   fun provideGitSecrets(@ApplicationContext context: Context): SharedPreferences {
     return context.getSharedPreferences("${BuildConfig.APPLICATION_ID}_git_secrets", 0)
   }
+
+  @[Provides AgeIdentities Reusable]
+  fun provideAgeIdentities(@ApplicationContext context: Context): SharedPreferences {
+    return context.getSharedPreferences("${BuildConfig.APPLICATION_ID}_age_identities", 0)
+  }
 }

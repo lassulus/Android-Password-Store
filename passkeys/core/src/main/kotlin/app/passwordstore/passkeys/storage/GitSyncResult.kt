@@ -21,12 +21,12 @@ public data class GitSyncResult(
 
   public fun affectsPasskeys(passkeyDirectory: String = "fido2"): Boolean {
     val passkeyPrefix = "$passkeyDirectory/"
-    if (changedPaths.isNotEmpty()) {
-      return changedPaths.any { it.startsWith(passkeyPrefix) || it == ".gpg-id" } ||
-        conflicts.any { it.startsWith(passkeyPrefix) || it == ".gpg-id" }
+    val affects = { path: String ->
+      path.startsWith(passkeyPrefix) || path in PasskeyBackend.recipientsFileNames
     }
-    return headChanged ||
-      worktreeChanged ||
-      conflicts.any { it.startsWith(passkeyPrefix) || it == ".gpg-id" }
+    if (changedPaths.isNotEmpty()) {
+      return changedPaths.any(affects) || conflicts.any(affects)
+    }
+    return headChanged || worktreeChanged || conflicts.any(affects)
   }
 }

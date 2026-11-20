@@ -76,6 +76,8 @@ include("autofill-parser")
 
 include("coroutine-utils")
 
+include("crypto:age")
+
 include("crypto:common")
 
 include("crypto:pgpainless")
